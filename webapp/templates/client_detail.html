@@ -73,4 +73,50 @@
     <button type="submit">Enregistrer les identifiants</button>
   </form>
 </section>
+
+<section class="card">
+  <h2>Plans marketing</h2>
+  <p class="muted">
+    Chaque plan cree automatiquement un job marketing selon sa cadence -- tout post/pub reel
+    propose reste en attente dans <a href="/approvals">/approvals</a>, comme d'habitude.
+  </p>
+  {% if plans %}
+  <table>
+    <tr><th>Nom</th><th>Cadence</th><th>Dernier lancement</th><th>Statut</th><th></th></tr>
+    {% for p in plans %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td>tous les {{ p.frequency_days }} jours</td>
+      <td>{{ p.last_run_at or "Jamais encore" }}</td>
+      <td>{{ "Actif" if p.active else "En pause" }}</td>
+      <td>
+        <form method="post" action="/plans/{{ p.id }}/run-now" style="display:inline">
+          <button type="submit" class="link-button">Lancer maintenant</button>
+        </form>
+        <form method="post" action="/plans/{{ p.id }}/toggle" style="display:inline">
+          <button type="submit" class="link-button">{{ "Mettre en pause" if p.active else "Reactiver" }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucun plan pour l'instant.</p>{% endif %}
+
+  <h3>Nouveau plan</h3>
+  <form method="post" action="/clients/{{ client.id }}/plans">
+    <label>
+      Nom
+      <input type="text" name="name" required placeholder="ex: Posts Facebook hebdo">
+    </label>
+    <label>
+      Cadence (tous les combien de jours)
+      <input type="number" name="frequency_days" min="1" required value="7">
+    </label>
+    <label>
+      Instruction donnee a l'equipe marketing a chaque lancement
+      <textarea name="brief_template" rows="4" required placeholder="ex: Propose un post Facebook sur le theme du mois, ton chaleureux, cible familles locales."></textarea>
+    </label>
+    <button type="submit">Creer le plan</button>
+  </form>
+</section>
 {% endblock %}

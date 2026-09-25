@@ -373,7 +373,11 @@ def client_detail_page(request: Request, client_id: str):
     return templates.TemplateResponse(
         request,
         "client_detail.html",
-        {"client": client, "platforms": db.list_client_platforms(client_id)},
+        {
+            "client": client,
+            "platforms": db.list_client_platforms(client_id),
+            "plans": db.list_marketing_plans(client_id),
+        },
     )
 
 
@@ -414,6 +418,53 @@ def save_vercel_credentials_form(
         payload["team_id"] = team_id.strip()
     db.save_client_credentials(client_id, "vercel", encrypt_json(payload))
     return RedirectResponse(f"/clients/{client_id}", status_code=303)
+
+
+# --- Plans marketing recurrents ---
+# Un plan ne fait que creer automatiquement un job 'marketing' selon sa cadence -- le job passe
+# ensuite par le meme pipeline stage->approve->execute que tout job manuel (voir
+# tools/publishing/staging.py). Aucune nouvelle regle de securite ici.
+
+@app.get("/plans", response_class=HTMLResponse, dependencies=[AuthDependency])
+def plans_page(request: Request):
+    plans = [dict(p) for p in db.list_marketing_plans()]
+    for plan in plans:
+        client = db.get_client(plan["client_id"])
+        plan["client_name"] = client["name"] if client else "(client supprime)"
+    return templates.TemplateResponse(request, "plans.html", {"plans": plans})
+
+
+@app.post("/clients/{client_id}/plans", dependencies=[AuthDependency])
+def create_marketing_plan_form(
+    client_id: str,
+    name: str = Form(...),
+    frequency_days: int = Form(...),
+    brief_template: str = Form(...),
+):
+    db.create_marketing_plan(client_id, name.strip(), frequency_days, brief_template.strip())
+    return RedirectResponse(f"/clients/{client_id}", status_code=303)
+
+
+@app.post("/plans/{plan_id}/toggle", dependencies=[AuthDependency])
+def toggle_marketing_plan(plan_id: str):
+    plan = db.get_marketing_plan(plan_id)
+    if plan is None:
+        return HTMLResponse("Plan introuvable", status_code=404)
+    db.set_marketing_plan_active(plan_id, not plan["active"])
+    return RedirectResponse("/plans", status_code=303)
+
+
+@app.post("/plans/{plan_id}/run-now", dependencies=[AuthDependency])
+def run_marketing_plan_now(plan_id: str):
+    plan = db.get_marketing_plan(plan_id)
+    if plan is None:
+        return HTMLResponse("Plan introuvable", status_code=404)
+    db.create_job(
+        kind="marketing", task=plan["brief_template"], client_id=plan["client_id"],
+        thread=f"plan-{plan_id}", plan_id=plan_id,
+    )
+    db.mark_marketing_plan_run(plan_id)
+    return RedirectResponse("/plans", status_code=303)
 
 
 # --- Demandes recues via /demande (lecture admin, authentifiee) ---

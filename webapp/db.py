@@ -98,6 +98,18 @@ CREATE TABLE IF NOT EXISTS scan_results (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_scan_results_target ON scan_results(target_id);
+
+CREATE TABLE IF NOT EXISTS marketing_plans (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    frequency_days INTEGER NOT NULL,
+    brief_template TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_run_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_marketing_plans_client ON marketing_plans(client_id);
 """
 
 
@@ -115,6 +127,9 @@ def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
     intake_columns = {row[1] for row in conn.execute("PRAGMA table_info(intake_submissions)").fetchall()}
     if "contact_phone" not in intake_columns:
         conn.execute("ALTER TABLE intake_submissions ADD COLUMN contact_phone TEXT")
+
+    if "plan_id" not in jobs_columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN plan_id TEXT")
 
 
 def _now() -> str:
@@ -162,13 +177,14 @@ def create_job(
     client_id: str | None = None,
     allow_push: bool = False,
     max_iterations: int | None = None,
+    plan_id: str | None = None,
 ) -> str:
     job_id = uuid.uuid4().hex[:12]
     with _connect() as conn:
         conn.execute(
             "INSERT INTO jobs (id, kind, task, project_dir, thread, client_id, allow_push, "
-            "max_iterations, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
-            (job_id, kind, task, project_dir, thread, client_id, int(allow_push), max_iterations, _now()),
+            "max_iterations, plan_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
+            (job_id, kind, task, project_dir, thread, client_id, int(allow_push), max_iterations, plan_id, _now()),
         )
     return job_id
 
@@ -515,3 +531,72 @@ def list_scan_results(target_id: str | None = None, limit: int = 100) -> list[sq
 def get_scan_result(result_id: str) -> sqlite3.Row | None:
     with _connect() as conn:
         return conn.execute("SELECT * FROM scan_results WHERE id=?", (result_id,)).fetchone()
+
+
+# --- Plans marketing recurrents par client ---
+
+def create_marketing_plan(client_id: str, name: str, frequency_days: int, brief_template: str) -> str:
+    plan_id = uuid.uuid4().hex[:12]
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO marketing_plans (id, client_id, name, frequency_days, brief_template, "
+            "active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
+            (plan_id, client_id, name, frequency_days, brief_template, _now()),
+        )
+    return plan_id
+
+
+def get_marketing_plan(plan_id: str) -> sqlite3.Row | None:
+    with _connect() as conn:
+        return conn.execute("SELECT * FROM marketing_plans WHERE id=?", (plan_id,)).fetchone()
+
+
+def list_marketing_plans(client_id: str | None = None) -> list[sqlite3.Row]:
+    query = "SELECT * FROM marketing_plans WHERE 1=1"
+    params: list = []
+    if client_id:
+        query += " AND client_id=?"
+        params.append(client_id)
+    query += " ORDER BY created_at ASC"
+    with _connect() as conn:
+        return conn.execute(query, params).fetchall()
+
+
+def list_due_marketing_plans() -> list[sqlite3.Row]:
+    """Plans actifs jamais lances, ou dont le dernier lancement date de plus que leur propre
+    `frequency_days` -- chaque plan a sa propre cadence, donc filtre en Python plutot qu'une
+    comparaison SQL sur une valeur fixe (voir list_due_scan_targets pour le cas a cadence
+    unique)."""
+    now = datetime.now(timezone.utc)
+    with _connect() as conn:
+        rows = conn.execute("SELECT * FROM marketing_plans WHERE active=1").fetchall()
+    due = []
+    for row in rows:
+        if row["last_run_at"] is None:
+            due.append(row)
+            continue
+        last_run = datetime.fromisoformat(row["last_run_at"])
+        if now - last_run >= timedelta(days=row["frequency_days"]):
+            due.append(row)
+    return due
+
+
+def has_pending_marketing_plan_job(plan_id: str) -> bool:
+    """Evite un doublon si le worker n'a pas encore traite le job du meme plan (meme principe
+    que has_pending_security_scan)."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM jobs WHERE plan_id=? AND status IN ('queued', 'running') LIMIT 1",
+            (plan_id,),
+        ).fetchone()
+        return row is not None
+
+
+def mark_marketing_plan_run(plan_id: str) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE marketing_plans SET last_run_at=? WHERE id=?", (_now(), plan_id))
+
+
+def set_marketing_plan_active(plan_id: str, active: bool) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE marketing_plans SET active=? WHERE id=?", (int(active), plan_id))

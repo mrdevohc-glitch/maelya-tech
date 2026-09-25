@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Plans marketing -- Mes agents{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Plans marketing (tous clients)</h2>
+  <p class="muted">Pour creer un nouveau plan, va sur la fiche du client concerne.</p>
+  {% if plans %}
+  <table>
+    <tr><th>Client</th><th>Nom</th><th>Cadence</th><th>Dernier lancement</th><th>Statut</th><th></th></tr>
+    {% for p in plans %}
+    <tr>
+      <td><a href="/clients/{{ p.client_id }}">{{ p.client_name }}</a></td>
+      <td>{{ p.name }}</td>
+      <td>tous les {{ p.frequency_days }} jours</td>
+      <td>{{ p.last_run_at or "Jamais encore" }}</td>
+      <td><span class="badge {{ 'status-succeeded' if p.active else 'status-queued' }}">{{ "Actif" if p.active else "En pause" }}</span></td>
+      <td>
+        <form method="post" action="/plans/{{ p.id }}/run-now" style="display:inline">
+          <button type="submit" class="link-button">Lancer maintenant</button>
+        </form>
+        <form method="post" action="/plans/{{ p.id }}/toggle" style="display:inline">
+          <button type="submit" class="link-button">{{ "Pause" if p.active else "Reactiver" }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucun plan pour l'instant.</p>{% endif %}
+</section>
+{% endblock %}

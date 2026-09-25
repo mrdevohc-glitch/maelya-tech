@@ -252,6 +252,18 @@ genere par un agent sans relecture humaine au prealable.
 de faire confiance a quoi que ce soit dans le payload -- sans ca, n'importe qui pourrait
 usurper `OWNER_WHATSAPP_NUMBER` dans une requete forgee.
 
+## Plans marketing recurrents (`/plans`)
+
+Definis une cadence par client (`/clients/<id>`, section "Plans marketing") : nom, frequence
+en jours, instruction donnee a l'equipe marketing a chaque lancement. Un planificateur interne
+(3e thread de fond dans `webapp/job_runner.py`, comme celui des scans securite) verifie chaque
+heure quels plans sont dus et cree automatiquement un job `marketing` -- **aucune nouvelle
+regle de securite** : le job passe par le meme pipeline que d'habitude, tout post/pub reel
+propose reste en attente dans `/approvals` jusqu'a validation humaine.
+
+`/plans` donne une vue d'ensemble tous clients confondus, avec un bouton "Lancer maintenant"
+(sans attendre la cadence) et "Mettre en pause"/"Reactiver" par plan.
+
 ### Obtenir un jeton Facebook Page (pour un client)
 
 1. Cree une app sur [developers.facebook.com](https://developers.facebook.com/apps/) (type

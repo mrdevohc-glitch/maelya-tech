@@ -31,6 +31,7 @@ from webapp import db
 _POLL_INTERVAL_SECONDS = 2
 _SECURITY_SCHEDULER_INTERVAL_SECONDS = 3600  # verifie une fois par heure quelles cibles sont dues
 _SECURITY_SCAN_MAX_AGE_DAYS = 7
+_MARKETING_PLAN_SCHEDULER_INTERVAL_SECONDS = 3600  # verifie une fois par heure quels plans sont dus
 
 
 def _slugify(text: str) -> str:
@@ -240,9 +241,29 @@ def _security_scheduler_loop() -> None:
         time.sleep(_SECURITY_SCHEDULER_INTERVAL_SECONDS)
 
 
+def _marketing_plan_scheduler_loop() -> None:
+    """Verifie periodiquement quels plans marketing (webapp.db.marketing_plans, definis par
+    client sur /clients/<id>) sont dus pour leur cadence propre, et cree un job kind='marketing'
+    pour chacun. Le job passe par le meme pipeline stage->approve->execute que tout job manuel
+    -- aucune nouvelle regle de securite, juste un declencheur automatique."""
+    while True:
+        try:
+            for plan in db.list_due_marketing_plans():
+                if not db.has_pending_marketing_plan_job(plan["id"]):
+                    db.create_job(
+                        kind="marketing", task=plan["brief_template"],
+                        client_id=plan["client_id"], thread=f"plan-{plan['id']}", plan_id=plan["id"],
+                    )
+                    db.mark_marketing_plan_run(plan["id"])
+        except Exception:  # noqa: BLE001 -- le planificateur ne doit jamais s'arreter
+            traceback.print_exc()
+        time.sleep(_MARKETING_PLAN_SCHEDULER_INTERVAL_SECONDS)
+
+
 def start_background_worker() -> threading.Thread:
     """A appeler une fois au demarrage du serveur (voir webapp/app.py)."""
     thread = threading.Thread(target=_worker_loop, name="job-worker", daemon=True)
     thread.start()
     threading.Thread(target=_security_scheduler_loop, name="security-scheduler", daemon=True).start()
+    threading.Thread(target=_marketing_plan_scheduler_loop, name="marketing-plan-scheduler", daemon=True).start()
     return thread
