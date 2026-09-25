@@ -216,6 +216,42 @@ propre serveur (infrastructure entierement possedee).
 
 Necessite `nmap` et `nikto` installes sur le serveur (`sudo apt install nmap nikto`).
 
+## Chatbot WhatsApp
+
+Meme API Graph que Facebook/Instagram -- ajoute le produit **"WhatsApp Business Platform"** a
+l'app Meta for Developers deja utilisee pour Facebook/Instagram (pas une nouvelle app). A
+l'inverse de Meta/Vercel, les identifiants WhatsApp sont **au niveau plateforme** (un seul
+numero pour toute l'agence), dans `.env` :
+
+1. Dans l'app Meta, section WhatsApp -> ajoute un numero de test (ou un numero verifie pour la
+   prod), recupere le `Phone number ID`, le jeton d'acces temporaire (ou permanent via un
+   utilisateur systeme) et l'**App Secret** (Parametres de l'app -> De base).
+2. Renseigne `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET` dans
+   `.env`. Choisis une chaine pour `WHATSAPP_WEBHOOK_VERIFY_TOKEN` (n'importe quoi, juste
+   utilise aussi cote Meta a l'etape suivante).
+3. Configure le webhook cote Meta : URL `https://studio.maelya.tech/webhooks/whatsapp`, jeton
+   de verification = celui choisi a l'etape 2, champ d'abonnement `messages`.
+4. Renseigne ton propre numero (format E.164, ex. `2250700000000`) dans
+   `OWNER_WHATSAPP_NUMBER` -- c'est ce qui te donne le controle complet, tout autre numero est
+   traite comme un prospect.
+5. Nouvelle Application Cloudflare Access (Bypass) sur `/webhooks/whatsapp*` -- meme mecanisme
+   que `/media`, `/demande`, `/static` (Meta ne peut pas passer par le mur email interactif).
+
+**Usage proprietaire** : `code: <instruction>` ou `marketing: <instruction>` cree un job comme
+depuis le tableau de bord ; tout autre message renvoie l'aide. **Aucune approbation ne se fait
+depuis WhatsApp** -- une publication/un deploiement propose reste a valider sur `/approvals`,
+WhatsApp ne contourne jamais cette barriere.
+
+**Usage prospect/client** : n'importe quel autre numero qui ecrit est traite exactement comme
+`/demande` (memes protections, `research_agent` seul jamais le supervisor complet, meme
+plafond quotidien). Le numero WhatsApp du client est enregistre automatiquement et sert aux
+notifications de suivi (devis pret, site deploye) -- textes fixes uniquement, jamais le contenu
+genere par un agent sans relecture humaine au prealable.
+
+**Securite critique** : `X-Hub-Signature-256` est verifiee sur chaque requete entrante avant
+de faire confiance a quoi que ce soit dans le payload -- sans ca, n'importe qui pourrait
+usurper `OWNER_WHATSAPP_NUMBER` dans une requete forgee.
+
 ### Obtenir un jeton Facebook Page (pour un client)
 
 1. Cree une app sur [developers.facebook.com](https://developers.facebook.com/apps/) (type

@@ -15,6 +15,17 @@ from tools.publishing import meta_client
 from webapp import db
 
 
+def _notify_client_whatsapp(client_id: str, text: str) -> None:
+    """Statut fixe uniquement (jamais du contenu genere par un agent sans relecture -- voir
+    tools/messaging/whatsapp_client.py). Ignore silencieusement si le client n'a pas de numero
+    WhatsApp enregistre ou si WhatsApp n'est pas configure."""
+    from tools.messaging.whatsapp_client import send_message
+
+    client = db.get_client(client_id)
+    if client is not None and client["whatsapp_number"]:
+        send_message(client["whatsapp_number"], text)
+
+
 def execute_action(action_id: str) -> str:
     action = db.get_pending_action(action_id)
     if action is None:
@@ -77,6 +88,7 @@ def _dispatch(action) -> str:
             payload["project_dir"], credentials["api_token"], payload["project_name"],
             team_id=credentials.get("team_id"),
         )
+        _notify_client_whatsapp(action["client_id"], f"Ton site est en ligne : {deployment_url}")
         return f"Deploye sur Vercel : {deployment_url}"
 
     raise ValueError(f"Combinaison plateforme/surface non supportee: {platform}/{surface}")

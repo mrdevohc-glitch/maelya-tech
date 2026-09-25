@@ -160,6 +160,34 @@ def _sync_intake_status(job_id: str, status: str) -> None:
         db.update_intake_status(submission["id"], status)
 
 
+def _notify_owner_job_done(row, status: str) -> None:
+    """Notification WhatsApp au proprietaire (voir tools/messaging/whatsapp_client.py --
+    silencieusement ignoree si WhatsApp n'est pas configure). Uniquement pour code/marketing --
+    'intake' a deja sa propre notification a la creation (webapp/app.py::_create_intake)."""
+    import os
+
+    from tools.messaging.whatsapp_client import send_message
+
+    owner_number = os.environ.get("OWNER_WHATSAPP_NUMBER", "")
+    if not owner_number or row["kind"] not in ("code", "marketing"):
+        return
+    apercu = row["task"][:80] + ("..." if len(row["task"]) > 80 else "")
+    send_message(owner_number, f"Job {row['kind']} {status} : {apercu}")
+
+
+def _notify_client_intake_ready(job_id: str) -> None:
+    """Statut fixe uniquement, jamais le contenu genere -- coherent avec la relecture humaine
+    obligatoire avant tout envoi reel au client (voir webapp/app.py::_create_intake)."""
+    from tools.messaging.whatsapp_client import send_message
+
+    submission = db.get_intake_submission_by_job(job_id)
+    if submission is None:
+        return
+    client = db.get_client(submission["client_id"])
+    if client is not None and client["whatsapp_number"]:
+        send_message(client["whatsapp_number"], "Ton cahier des charges est pret -- on revient vers toi tres vite.")
+
+
 def _process_one(row) -> None:
     if row["kind"] == "intake":
         _sync_intake_status(row["id"], "running")
@@ -179,10 +207,13 @@ def _process_one(row) -> None:
         db.mark_succeeded(row["id"], result)
         if row["kind"] == "intake":
             _sync_intake_status(row["id"], "succeeded")
+            _notify_client_intake_ready(row["id"])
+        _notify_owner_job_done(row, "termine")
     except Exception:  # noqa: BLE001 -- un job en echec ne doit jamais arreter le worker
         db.mark_failed(row["id"], traceback.format_exc())
         if row["kind"] == "intake":
             _sync_intake_status(row["id"], "failed")
+        _notify_owner_job_done(row, "en echec")
 
 
 def _worker_loop() -> None:

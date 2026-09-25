@@ -102,11 +102,19 @@ CREATE INDEX IF NOT EXISTS idx_scan_results_target ON scan_results(target_id);
 
 
 def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
-    """CREATE TABLE IF NOT EXISTS ne modifie pas une table existante -- si `jobs` existe deja
-    sans `client_id` (webapp.sqlite cree avant cette fonctionnalite), on l'ajoute ici."""
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
-    if "client_id" not in existing:
+    """CREATE TABLE IF NOT EXISTS ne modifie pas une table existante -- si une table existe
+    deja sans une colonne ajoutee par une fonctionnalite plus recente, on l'ajoute ici."""
+    jobs_columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+    if "client_id" not in jobs_columns:
         conn.execute("ALTER TABLE jobs ADD COLUMN client_id TEXT")
+
+    clients_columns = {row[1] for row in conn.execute("PRAGMA table_info(clients)").fetchall()}
+    if "whatsapp_number" not in clients_columns:
+        conn.execute("ALTER TABLE clients ADD COLUMN whatsapp_number TEXT")
+
+    intake_columns = {row[1] for row in conn.execute("PRAGMA table_info(intake_submissions)").fetchall()}
+    if "contact_phone" not in intake_columns:
+        conn.execute("ALTER TABLE intake_submissions ADD COLUMN contact_phone TEXT")
 
 
 def _now() -> str:
@@ -239,12 +247,13 @@ def list_marketing_threads() -> list[dict]:
 
 # --- Clients ---
 
-def create_client(name: str, business_profile: str = "") -> str:
+def create_client(name: str, business_profile: str = "", whatsapp_number: str | None = None) -> str:
     client_id = uuid.uuid4().hex[:10]
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO clients (id, name, business_profile, created_at) VALUES (?, ?, ?, ?)",
-            (client_id, name, business_profile, _now()),
+            "INSERT INTO clients (id, name, business_profile, whatsapp_number, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (client_id, name, business_profile, whatsapp_number, _now()),
         )
     return client_id
 
@@ -252,6 +261,13 @@ def create_client(name: str, business_profile: str = "") -> str:
 def get_client(client_id: str) -> sqlite3.Row | None:
     with _connect() as conn:
         return conn.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
+
+
+def get_client_by_whatsapp_number(whatsapp_number: str) -> sqlite3.Row | None:
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM clients WHERE whatsapp_number=?", (whatsapp_number,)
+        ).fetchone()
 
 
 def list_clients() -> list[sqlite3.Row]:
@@ -263,6 +279,13 @@ def update_client_profile(client_id: str, business_profile: str) -> None:
     with _connect() as conn:
         conn.execute(
             "UPDATE clients SET business_profile=? WHERE id=?", (business_profile, client_id)
+        )
+
+
+def update_client_whatsapp_number(client_id: str, whatsapp_number: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE clients SET whatsapp_number=? WHERE id=?", (whatsapp_number, client_id)
         )
 
 
@@ -361,14 +384,17 @@ def mark_action_failed(action_id: str, error: str) -> None:
 # --- Demandes entrantes (portail public /demande) ---
 
 def create_intake_submission(
-    client_id: str, contact_name: str, contact_email: str, company: str, brief: str, job_id: str
+    client_id: str, contact_name: str, contact_email: str, company: str, brief: str, job_id: str,
+    contact_phone: str | None = None,
 ) -> str:
     submission_id = uuid.uuid4().hex[:12]
     with _connect() as conn:
         conn.execute(
             "INSERT INTO intake_submissions (id, client_id, contact_name, contact_email, "
-            "company, brief, job_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
-            (submission_id, client_id, contact_name, contact_email, company, brief, job_id, _now()),
+            "company, brief, job_id, contact_phone, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
+            (submission_id, client_id, contact_name, contact_email, company, brief, job_id,
+             contact_phone, _now()),
         )
     return submission_id
 

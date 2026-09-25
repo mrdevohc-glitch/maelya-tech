@@ -10,6 +10,18 @@
 </section>
 
 <section class="card">
+  <h2>Numero WhatsApp</h2>
+  <p class="muted">
+    Pour les notifications de suivi (devis pret, site deploye). Format E.164, ex: 2250700000000.
+    Rempli automatiquement si le client a d'abord ecrit via WhatsApp.
+  </p>
+  <form method="post" action="/clients/{{ client.id }}/whatsapp">
+    <input type="text" name="whatsapp_number" value="{{ client.whatsapp_number or '' }}" placeholder="2250700000000">
+    <button type="submit">Enregistrer</button>
+  </form>
+</section>
+
+<section class="card">
   <h2>Profil business</h2>
   <p class="muted">Utilise par les agents marketing pour ce client (ton de marque, ICP, positionnement...).</p>
   <form method="post" action="/clients/{{ client.id }}/profile">

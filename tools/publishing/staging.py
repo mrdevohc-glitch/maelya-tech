@@ -6,11 +6,26 @@ tools/publishing/executor.py -- jamais directement par un agent/modele."""
 from __future__ import annotations
 
 import json
+import os
 
 from langchain_core.tools import tool
 
 from common.current_client import get_current_client
 from webapp import db
+
+
+def _notify_owner_pending_action(client_id: str, platform: str, action_type: str) -> None:
+    from tools.messaging.whatsapp_client import send_message
+
+    owner_number = os.environ.get("OWNER_WHATSAPP_NUMBER", "")
+    if not owner_number:
+        return
+    client = db.get_client(client_id)
+    client_name = client["name"] if client else client_id
+    send_message(
+        owner_number,
+        f"Nouvelle action en attente d'approbation ({platform}/{action_type}) pour {client_name} -- voir /approvals.",
+    )
 
 
 def _stage(platform: str, action_type: str, payload: dict) -> str:
@@ -23,6 +38,7 @@ def _stage(platform: str, action_type: str, payload: dict) -> str:
             "dans le tableau de bord."
         )
     action_id = db.create_pending_action(client_id, platform, action_type, json.dumps(payload))
+    _notify_owner_pending_action(client_id, platform, action_type)
     return (
         f"OK: mis en attente d'approbation (id={action_id}). Rien n'est publie -- l'utilisateur "
         f"doit valider dans /approvals avant que ca parte reellement. Dis-le clairement a "

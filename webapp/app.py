@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -111,6 +111,37 @@ def _intake_form_context(error: str | None) -> dict:
     return {"error": error, "turnstile_site_key": os.environ.get("TURNSTILE_SITE_KEY", "")}
 
 
+def _create_intake(
+    name: str, contact_email: str, company: str, brief: str, contact_phone: str | None = None
+) -> str:
+    """Transforme un brief (venu du formulaire web OU du webhook WhatsApp) en client + job
+    'intake' + ligne intake_submissions -- source unique de verite pour ce chemin, pour que les
+    deux canaux restent strictement equivalents en termes de securite (research_agent seul,
+    jamais le supervisor complet -- voir job_runner.py::_run_intake_job)."""
+    from tools.messaging.whatsapp_client import send_message
+
+    client_id = db.create_client(company or name, whatsapp_number=contact_phone)
+    source = "WhatsApp" if contact_phone else "le portail public"
+    brief_prompt = (
+        f"Nouvelle demande recue via {source}.\n"
+        f"Contact : {name} <{contact_email}>" + (f" -- {company}" if company else "") + "\n\n"
+        f"Besoin decrit par le prospect :\n{brief}"
+    )
+    project_dir = OUTPUT_DIR / "intake" / uuid.uuid4().hex[:12]
+    job_id = db.create_job(kind="intake", task=brief_prompt, project_dir=str(project_dir), client_id=client_id)
+    submission_id = db.create_intake_submission(
+        client_id, name, contact_email, company, brief, job_id, contact_phone=contact_phone
+    )
+
+    owner_number = os.environ.get("OWNER_WHATSAPP_NUMBER", "")
+    if owner_number:
+        send_message(owner_number, f"Nouvelle demande recue ({source}) : {name}" + (f" -- {company}" if company else ""))
+    if contact_phone:
+        send_message(contact_phone, "Merci ! Ta demande a bien ete recue, on revient vers toi tres vite.")
+
+    return submission_id
+
+
 @app.get("/demande", response_class=HTMLResponse)
 def intake_form(request: Request):
     return templates.TemplateResponse(request, "demande.html", _intake_form_context(None))
@@ -156,18 +187,99 @@ def intake_submit(
         )
 
     _intake_rate_limiter.record(ip)
-
-    client_id = db.create_client(company or name)
-    brief_prompt = (
-        f"Nouvelle demande recue via le portail public.\n"
-        f"Contact : {name} <{email}>" + (f" -- {company}" if company else "") + "\n\n"
-        f"Besoin decrit par le prospect :\n{brief}"
-    )
-    project_dir = OUTPUT_DIR / "intake" / uuid.uuid4().hex[:12]
-    job_id = db.create_job(kind="intake", task=brief_prompt, project_dir=str(project_dir), client_id=client_id)
-    db.create_intake_submission(client_id, name, email, company, brief, job_id)
-
+    _create_intake(name, email, company, brief)
     return RedirectResponse("/demande/merci", status_code=303)
+
+
+# --- Webhook WhatsApp (pilotage proprietaire + prise de contact clients/prospects) ---
+# Route SANS AuthDependency par design (Meta appelle ce webhook, pas un navigateur avec cookie
+# de session) -- Cloudflare Access doit avoir une regle "Bypass" dediee sur ce chemin, comme
+# pour /demande, /media et /static.
+
+_whatsapp_sender_rate_limiter = RateLimiter(max_attempts=5, window_seconds=3600)
+_WHATSAPP_HELP_TEXT = (
+    "Pour piloter les agents, commence ton message par 'code:' ou 'marketing:' suivi de "
+    "l'instruction. Exemple : code: cree un site vitrine pour un artisan plombier"
+)
+
+
+@app.get("/webhooks/whatsapp")
+def whatsapp_webhook_verify(request: Request):
+    """Poignee de main initiale exigee par Meta lors de la configuration du webhook."""
+    expected = os.environ.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "")
+    if (
+        expected
+        and request.query_params.get("hub.mode") == "subscribe"
+        and request.query_params.get("hub.verify_token") == expected
+    ):
+        return PlainTextResponse(request.query_params.get("hub.challenge", ""))
+    return HTMLResponse("Verification refusee", status_code=403)
+
+
+def _handle_owner_whatsapp_command(sender: str, text: str) -> None:
+    from tools.messaging.whatsapp_client import send_message
+
+    lowered = text.lower()
+    if lowered.startswith("code:"):
+        db.create_job(kind="code", task=text[len("code:"):].strip())
+        send_message(sender, "OK, nouvelle tache 'code' lancee -- suis-la sur le tableau de bord.")
+    elif lowered.startswith("marketing:"):
+        db.create_job(kind="marketing", task=text[len("marketing:"):].strip(), thread="whatsapp")
+        send_message(sender, "OK, nouvelle tache 'marketing' lancee -- suis-la sur le tableau de bord.")
+    else:
+        send_message(sender, _WHATSAPP_HELP_TEXT)
+
+
+def _handle_unknown_whatsapp_message(sender: str, sender_name: str, text: str) -> None:
+    """Expediteur inconnu = prospect/client -- traite EXACTEMENT comme /demande (voir
+    _create_intake) : jamais le supervisor complet, un seul aller-retour."""
+    from tools.messaging.whatsapp_client import send_message
+
+    if not _whatsapp_sender_rate_limiter.is_allowed(sender):
+        send_message(sender, "Trop de messages recents -- reessaie plus tard.")
+        return
+    if db.count_intake_submissions_today() >= _MAX_INTAKE_PER_DAY:
+        send_message(sender, "Trop de demandes recues aujourd'hui -- reessaie demain.")
+        return
+    if len(text) > _MAX_BRIEF_CHARS:
+        send_message(sender, f"Message trop long (max {_MAX_BRIEF_CHARS} caracteres).")
+        return
+    _whatsapp_sender_rate_limiter.record(sender)
+    _create_intake(sender_name or sender, f"whatsapp:{sender}", "", text, contact_phone=sender)
+
+
+@app.post("/webhooks/whatsapp")
+async def whatsapp_webhook_receive(request: Request):
+    from tools.messaging.whatsapp_client import verify_webhook_signature
+
+    body = await request.body()
+    signature = request.headers.get("x-hub-signature-256", "")
+    # CRITIQUE : sans cette verification, n'importe qui pourrait forger une requete pretendant
+    # venir du numero du proprietaire et obtenir un acces "pilotage complet" des agents.
+    if not verify_webhook_signature(body, signature):
+        return JSONResponse({"error": "signature invalide"}, status_code=401)
+
+    payload = await request.json()
+    owner_number = os.environ.get("OWNER_WHATSAPP_NUMBER", "")
+
+    for entry in payload.get("entry", []):
+        for change in entry.get("changes", []):
+            value = change.get("value", {})
+            contact_names = {
+                c.get("wa_id"): c.get("profile", {}).get("name", "")
+                for c in value.get("contacts", [])
+            }
+            for message in value.get("messages", []):
+                sender = message.get("from", "")
+                text = message.get("text", {}).get("body", "").strip()
+                if not sender or not text:
+                    continue
+                if owner_number and sender == owner_number:
+                    _handle_owner_whatsapp_command(sender, text)
+                else:
+                    _handle_unknown_whatsapp_message(sender, contact_names.get(sender, ""), text)
+
+    return JSONResponse({"status": "ok"})
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -268,6 +380,12 @@ def client_detail_page(request: Request, client_id: str):
 @app.post("/clients/{client_id}/profile", dependencies=[AuthDependency])
 def update_client_profile_form(client_id: str, business_profile: str = Form("")):
     db.update_client_profile(client_id, business_profile)
+    return RedirectResponse(f"/clients/{client_id}", status_code=303)
+
+
+@app.post("/clients/{client_id}/whatsapp", dependencies=[AuthDependency])
+def update_client_whatsapp_form(client_id: str, whatsapp_number: str = Form("")):
+    db.update_client_whatsapp_number(client_id, whatsapp_number.strip() or None)
     return RedirectResponse(f"/clients/{client_id}", status_code=303)
 
 

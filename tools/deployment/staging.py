@@ -12,6 +12,7 @@ from langchain_core.tools import tool
 
 from common.current_client import get_current_client
 from common.workdir import get_working_directory
+from tools.publishing.staging import _notify_owner_pending_action
 from webapp import db
 
 
@@ -37,6 +38,7 @@ def stage_vercel_deploy() -> str:
     project_name = _slugify(project_dir.name)
     payload = {"project_dir": str(project_dir), "project_name": project_name}
     action_id = db.create_pending_action(client_id, "vercel", "deploy", json.dumps(payload))
+    _notify_owner_pending_action(client_id, "vercel", "deploy")
     return (
         f"OK: deploiement mis en attente d'approbation (id={action_id}, projet='{project_name}'). "
         f"Rien n'est deploye -- l'utilisateur doit valider dans /approvals avant que ca parte "
