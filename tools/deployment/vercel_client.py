@@ -71,9 +71,12 @@ def deploy_directory(project_dir: str, token: str, project_name: str, team_id: s
     if not files:
         raise VercelAPIError(f"Aucun fichier trouve dans {project_dir} -- rien a deployer.")
 
+    params = {"skipAutoDetectionConfirmation": "1"}
+    if team_id:
+        params["teamId"] = team_id
     response = requests.post(
         f"{_API_BASE}/v13/deployments",
-        params={"teamId": team_id} if team_id else {},
+        params=params,
         json={"name": project_name, "files": files, "target": "production"},
         headers={"Authorization": f"Bearer {token}"},
         timeout=_TIMEOUT_SECONDS,
