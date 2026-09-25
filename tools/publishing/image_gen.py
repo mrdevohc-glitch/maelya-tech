@@ -12,7 +12,7 @@ from openai import OpenAI
 
 from common.paths import OUTPUT_DIR
 
-_IMAGES_DIR = OUTPUT_DIR / "marketing" / "images"
+IMAGES_DIR = OUTPUT_DIR / "marketing" / "images"
 
 
 @tool
@@ -34,9 +34,9 @@ def generate_ad_image(prompt: str, size: str = "1024x1024") -> str:
     )
     image_bytes = base64.b64decode(response.data[0].b64_json)
 
-    _IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid.uuid4().hex[:10]}.png"
-    target = _IMAGES_DIR / filename
+    target = IMAGES_DIR / filename
     target.write_bytes(image_bytes)
 
     return f"OK: image generee dans output/marketing/images/{filename}"

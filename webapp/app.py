@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from common.crypto import encrypt_json
 from common.paths import AGENTS_ROOT
+from tools.publishing.image_gen import IMAGES_DIR
 from webapp import db
 from webapp.auth import (
     AuthDependency,
@@ -44,6 +45,13 @@ app.add_middleware(
     max_age=30 * 24 * 3600,
 )
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+# /media sert les images publicitaires generees (output/marketing/images/) SANS authentification
+# -- delibere : Meta doit pouvoir recuperer l'image pour publier sur Instagram, et n'a evidemment
+# pas notre cookie de session. Les noms de fichiers sont des UUID (voir tools/publishing/
+# image_gen.py), donc pas devinables/enumerables ; aucune autre donnee de l'app n'est exposee ici.
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(IMAGES_DIR)), name="media")
 
 
 @app.exception_handler(StarletteHTTPException)

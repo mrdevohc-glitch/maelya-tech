@@ -43,8 +43,8 @@ def stage_instagram_post(caption: str, image_path: str) -> str:
     courant. `image_path` doit etre le chemin d'une image deja generee (voir
     generate_ad_image). Ne publie JAMAIS directement -- necessite une validation humaine.
 
-    LIMITE CONNUE : l'API Instagram exige une URL d'image publiquement accessible, pas un
-    fichier local -- l'executeur devra heberger l'image (ex: via le tableau de bord une fois
-    deploye publiquement) avant de pouvoir vraiment publier. Voir tools/publishing/meta_client.py.
+    L'image est servie publiquement (sans authentification) via /media/<nom-fichier> au moment
+    de l'execution -- necessaire car l'API Instagram exige une URL publique, pas un fichier
+    local (voir tools/publishing/executor.py et PLATFORM_PUBLIC_URL dans .env).
     """
     return _stage("meta", "post", {"surface": "instagram", "caption": caption, "image_path": image_path})

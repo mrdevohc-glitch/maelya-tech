@@ -152,12 +152,14 @@ client A n'a jamais acces aux identifiants du client B.
 3. Genere un jeton d'acces longue duree pour la Page du client (Graph API Explorer, ou echange
    d'un jeton court contre un jeton longue duree via l'endpoint `oauth/access_token`).
 4. Dans le tableau de bord, va sur `/clients/<id>`, section "Identifiants Facebook/Instagram",
-   colle le `Page ID` et le jeton -- ils sont chiffres immediatement, plus jamais affiches.
+   colle le `Page ID`, le jeton et (pour Instagram) l'`ig_user_id` -- ils sont chiffres
+   immediatement, plus jamais affiches.
 
-**Limite connue** : la publication Instagram necessite une URL d'image publiquement
-accessible (contrainte de l'API Meta) -- ca ne fonctionnera pleinement qu'une fois le tableau
-de bord deploye publiquement (voir section Hebergement). Les posts Facebook texte
-fonctionnent deja pleinement en local.
+**Instagram** : fonctionne pleinement une fois le tableau de bord hebergee publiquement
+(voir section Hebergement) et `PLATFORM_PUBLIC_URL` renseigne dans `.env` (ex.
+`https://studio.maelya.tech`) -- l'API Meta exige une URL d'image publiquement accessible,
+servie sans authentification via `/media/<fichier>` (noms de fichiers en UUID, pas
+devinables). Les posts Facebook texte fonctionnent aussi bien en local qu'heberge.
 
 ### Prochaines plateformes (memes principes)
 

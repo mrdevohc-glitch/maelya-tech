@@ -4,6 +4,8 @@ meme declenche uniquement quand l'utilisateur clique "Approuver" dans /approvals
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
 from common.crypto import decrypt_json
 from tools.publishing import meta_client
@@ -46,11 +48,25 @@ def _dispatch(action) -> str:
         return f"Publie sur Facebook, post_id={post_id}"
 
     if platform == "meta" and surface == "instagram":
-        raise NotImplementedError(
-            "Publication Instagram pas encore active : l'API Instagram exige une URL d'image "
-            "publiquement accessible, pas un fichier local -- a completer une fois le tableau "
-            "de bord deploye publiquement (voir la limite documentee dans "
-            "tools/publishing/staging.py)."
+        ig_user_id = credentials.get("ig_user_id")
+        if not ig_user_id:
+            raise ValueError(
+                "Aucun 'ig_user_id' enregistre pour ce client -- requis pour publier sur "
+                "Instagram (voir /clients/<id>, section identifiants Meta)."
+            )
+        public_url = os.environ.get("PLATFORM_PUBLIC_URL", "").rstrip("/")
+        if not public_url:
+            raise ValueError(
+                "PLATFORM_PUBLIC_URL manquant dans .env -- necessaire pour construire une URL "
+                "d'image publiquement accessible (contrainte de l'API Instagram)."
+            )
+        # Seul le nom de fichier est retenu (jamais le chemin fourni tel quel) : l'image doit
+        # forcement venir de output/marketing/images/, jamais d'un chemin arbitraire.
+        image_filename = Path(payload["image_path"]).name
+        image_url = f"{public_url}/media/{image_filename}"
+        post_id = meta_client.post_to_instagram(
+            ig_user_id, credentials["access_token"], image_url, payload.get("caption", "")
         )
+        return f"Publie sur Instagram, post_id={post_id}"
 
     raise ValueError(f"Combinaison plateforme/surface non supportee: {platform}/{surface}")
