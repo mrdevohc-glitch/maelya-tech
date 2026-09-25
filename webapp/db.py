@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS client_credentials (
     PRIMARY KEY (client_id, platform)
 );
 
+CREATE TABLE IF NOT EXISTS intake_submissions (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    contact_name TEXT NOT NULL,
+    contact_email TEXT NOT NULL,
+    company TEXT,
+    brief TEXT NOT NULL,
+    job_id TEXT,
+    status TEXT NOT NULL DEFAULT 'queued',   -- queued | running | succeeded | failed
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_intake_submissions_created_at ON intake_submissions(created_at);
+
 CREATE TABLE IF NOT EXISTS pending_actions (
     id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL,
@@ -323,3 +336,55 @@ def mark_action_failed(action_id: str, error: str) -> None:
             "UPDATE pending_actions SET status='failed', executed_at=?, result=? WHERE id=?",
             (_now(), error, action_id),
         )
+
+
+# --- Demandes entrantes (portail public /demande) ---
+
+def create_intake_submission(
+    client_id: str, contact_name: str, contact_email: str, company: str, brief: str, job_id: str
+) -> str:
+    submission_id = uuid.uuid4().hex[:12]
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO intake_submissions (id, client_id, contact_name, contact_email, "
+            "company, brief, job_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
+            (submission_id, client_id, contact_name, contact_email, company, brief, job_id, _now()),
+        )
+    return submission_id
+
+
+def get_intake_submission(submission_id: str) -> sqlite3.Row | None:
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM intake_submissions WHERE id=?", (submission_id,)
+        ).fetchone()
+
+
+def get_intake_submission_by_job(job_id: str) -> sqlite3.Row | None:
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM intake_submissions WHERE job_id=?", (job_id,)
+        ).fetchone()
+
+
+def list_intake_submissions(limit: int = 100) -> list[sqlite3.Row]:
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM intake_submissions ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+
+
+def update_intake_status(submission_id: str, status: str) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE intake_submissions SET status=? WHERE id=?", (status, submission_id))
+
+
+def count_intake_submissions_today() -> int:
+    """Nombre de demandes recues depuis minuit UTC -- utilise comme plafond de securite anti-abus
+    sur le formulaire public (chaque demande declenche un vrai appel OpenAI payant)."""
+    start_of_day = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00")
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM intake_submissions WHERE created_at >= ?", (start_of_day,)
+        ).fetchone()
+        return row["n"]

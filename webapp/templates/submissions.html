@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Demandes -- Mes agents{% endblock %}
+{% block content %}
+<section class="card">
+  <h2>Demandes recues via le portail public</h2>
+  <p class="muted">
+    Le lien a transmettre a un prospect : <code>{{ request.url_for('intake_form') }}</code>
+  </p>
+  {% if submissions %}
+  <table>
+    <tr><th>Quand</th><th>Contact</th><th>Entreprise</th><th>Statut</th><th></th></tr>
+    {% for s in submissions %}
+    <tr>
+      <td>{{ s.created_at }}</td>
+      <td>{{ s.contact_name }} ({{ s.contact_email }})</td>
+      <td>{{ s.company or "--" }}</td>
+      <td><span class="badge status-{{ s.status }}">{{ s.status }}</span></td>
+      <td><a href="/submissions/{{ s.id }}">Voir</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucune demande pour l'instant.</p>{% endif %}
+</section>
+{% endblock %}

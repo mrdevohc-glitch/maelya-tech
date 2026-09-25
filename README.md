@@ -121,12 +121,39 @@ Le dashboard liste les projets/conversations existants, permet d'en lancer un no
 repondre a un job en cours (equivalent web du "relance avec le meme --project-dir/--thread" de
 la CLI), et suit le statut en direct (rafraichissement automatique pendant qu'un job tourne).
 
-Hebergement (acces depuis n'importe ou) : voir `deploy/` -- prevu pour un petit VPS (ex.
-Hetzner CPX22, ~5,50 $/mois) derriere un Cloudflare Tunnel (aucun port ouvert sur le serveur)
-+ Cloudflare Access (deuxieme barriere avant meme la page de connexion). Cette etape se fait
-ensemble (creation du compte serveur, DNS, etc.) -- `deploy/setup_server.sh` sert de reference
-pour la premiere installation, `deploy/deploy.sh` pour chaque mise a jour ensuite (`git pull` +
-redemarrage, une seule commande).
+**Hebergement reel actuel** : auto-heberge sur un PC personnel (Ubuntu Server, service systemd
+`agents-platform`), expose publiquement via Cloudflare Tunnel (`cloudflared`, aucun port ouvert
+sur la box) sur `https://studio.maelya.tech`, avec Cloudflare Access en 2e barriere (code email
+avant meme la page de connexion) sur tout le hostname SAUF les chemins publics `/media/*` et
+`/demande*` (policy "Bypass" dediee -- voir section portail client). `deploy/` garde des
+templates generiques (`setup_server.sh`, `agents-platform.service`) utiles comme reference si
+un jour le service change de machine. Pas encore de deploiement base sur `git pull` -- mise a
+jour actuelle par copie manuelle des fichiers modifies sur le serveur.
+
+## Portail client public (`/demande`)
+
+Formulaire public (aucune authentification) ou un prospect decrit son projet -- genere
+automatiquement, via `research_agent` **seul, jamais via le supervisor complet**, les 4
+documents de cadrage habituels (cahier des charges, choix techno, devis, trame de contrat) dans
+un dossier jetable `output/intake/<id>/`. Rien n'est jamais montre ou envoye au prospect
+automatiquement : le resultat atterrit dans `/submissions` (authentifie) pour relecture humaine
+avant tout retour au client, comme pour les publications reelles.
+
+**Pourquoi `research_agent` seul et pas le supervisor** : le brief est ecrit par un inconnu sur
+internet (injection de prompt possible). `research_agent` n'a que `read_file`/`write_file`
+(bornes au dossier jetable, voir `common/workdir.py`) et une recherche web -- **pas d'outil
+shell**, contrairement a `backend_agent`/`frontend_agent`/`test_deploy_agent`. Le supervisor
+complet n'est donc jamais atteignable depuis ce formulaire.
+
+**Protections anti-abus** (chaque soumission declenche un vrai appel OpenAI payant) :
+Cloudflare Turnstile (captcha invisible, cles `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` dans
+`.env`, widget cree dans le dashboard Cloudflare), rate-limit par IP (3/heure,
+`webapp/rate_limit.py`), plafond global de 20 demandes/jour.
+
+**Cote Cloudflare Access** : le formulaire doit rester accessible sans le mur email destine a
+l'operateur -- necessite une Application Access dediee sur `studio.maelya.tech` + path
+`/demande*` avec une policy **Bypass** (pas "Allow", qui exigerait quand meme une connexion).
+Meme mecanisme utilise pour `/media/*` (images publicitaires servies a Meta).
 
 ## Publication reelle multi-client (Facebook/Instagram)
 

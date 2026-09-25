@@ -5,8 +5,10 @@ Lancement local : .venv\\Scripts\\python.exe -m uvicorn webapp.app:app --reload
 from __future__ import annotations
 
 import os
+import uuid
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -16,9 +18,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from common.crypto import encrypt_json
-from common.paths import AGENTS_ROOT
+from common.paths import AGENTS_ROOT, OUTPUT_DIR
 from tools.publishing.image_gen import IMAGES_DIR
 from webapp import db
+from webapp.rate_limit import RateLimiter
 from webapp.auth import (
     AuthDependency,
     clear_failed_attempts,
@@ -76,6 +79,97 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+# --- Portail public /demande (cahier des charges/devis automatique pour un prospect) ---
+# Route SANS AuthDependency par design : c'est le lien qu'on transmet a un client potentiel, pas
+# a soi-meme. Voir le plan de securite : research_agent est invoque en isolation (job_runner.py),
+# jamais le supervisor complet, pour qu'un brief malveillant ne puisse jamais atteindre un agent
+# avec outil shell. Cloudflare Access doit avoir une regle "Bypass" dediee sur ce chemin, sinon
+# le mur de connexion de studio.maelya.tech bloquerait aussi les vrais prospects.
+
+_TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+_intake_rate_limiter = RateLimiter(max_attempts=3, window_seconds=3600)
+_MAX_BRIEF_CHARS = 4000
+_MAX_INTAKE_PER_DAY = 20
+
+
+def _verify_turnstile(token: str, remote_ip: str) -> bool:
+    secret = os.environ.get("TURNSTILE_SECRET_KEY", "")
+    if not secret:
+        return False
+    try:
+        response = requests.post(
+            _TURNSTILE_VERIFY_URL,
+            data={"secret": secret, "response": token, "remoteip": remote_ip},
+            timeout=10,
+        )
+        return bool(response.json().get("success"))
+    except requests.RequestException:
+        return False
+
+
+def _intake_form_context(error: str | None) -> dict:
+    return {"error": error, "turnstile_site_key": os.environ.get("TURNSTILE_SITE_KEY", "")}
+
+
+@app.get("/demande", response_class=HTMLResponse)
+def intake_form(request: Request):
+    return templates.TemplateResponse(request, "demande.html", _intake_form_context(None))
+
+
+@app.get("/demande/merci", response_class=HTMLResponse)
+def intake_thanks(request: Request):
+    return templates.TemplateResponse(request, "demande_merci.html", {})
+
+
+@app.post("/demande", response_class=HTMLResponse)
+def intake_submit(
+    request: Request,
+    name: str = Form(...),
+    email: str = Form(...),
+    company: str = Form(""),
+    brief: str = Form(...),
+    turnstile_token: str = Form("", alias="cf-turnstile-response"),
+):
+    ip = _client_ip(request)
+
+    if not _intake_rate_limiter.is_allowed(ip):
+        return templates.TemplateResponse(
+            request, "demande.html", _intake_form_context("Trop de demandes recentes depuis cette adresse -- reessaie plus tard."), status_code=429
+        )
+    if not _verify_turnstile(turnstile_token, ip):
+        return templates.TemplateResponse(
+            request, "demande.html", _intake_form_context("Verification anti-robot echouee -- reessaie."), status_code=400
+        )
+    if db.count_intake_submissions_today() >= _MAX_INTAKE_PER_DAY:
+        return templates.TemplateResponse(
+            request, "demande.html", _intake_form_context("Trop de demandes recues aujourd'hui -- reessaie demain ou contacte-nous directement."), status_code=429
+        )
+
+    name, email, company, brief = name.strip(), email.strip(), company.strip(), brief.strip()
+    if not name or not email or not brief:
+        return templates.TemplateResponse(
+            request, "demande.html", _intake_form_context("Merci de remplir tous les champs obligatoires."), status_code=400
+        )
+    if len(brief) > _MAX_BRIEF_CHARS:
+        return templates.TemplateResponse(
+            request, "demande.html", _intake_form_context(f"Description trop longue (max {_MAX_BRIEF_CHARS} caracteres)."), status_code=400
+        )
+
+    _intake_rate_limiter.record(ip)
+
+    client_id = db.create_client(company or name)
+    brief_prompt = (
+        f"Nouvelle demande recue via le portail public.\n"
+        f"Contact : {name} <{email}>" + (f" -- {company}" if company else "") + "\n\n"
+        f"Besoin decrit par le prospect :\n{brief}"
+    )
+    project_dir = OUTPUT_DIR / "intake" / uuid.uuid4().hex[:12]
+    job_id = db.create_job(kind="intake", task=brief_prompt, project_dir=str(project_dir), client_id=client_id)
+    db.create_intake_submission(client_id, name, email, company, brief, job_id)
+
+    return RedirectResponse("/demande/merci", status_code=303)
+
+
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {"error": None})
@@ -118,6 +212,7 @@ def dashboard(request: Request):
             "recent_jobs": db.list_jobs(limit=20),
             "clients": db.list_clients(),
             "pending_count": len(db.list_pending_actions(status="pending")),
+            "submissions_count": len(db.list_intake_submissions()),
         },
     )
 
@@ -188,6 +283,34 @@ def save_meta_credentials_form(
         payload["ig_user_id"] = ig_user_id.strip()
     db.save_client_credentials(client_id, "meta", encrypt_json(payload))
     return RedirectResponse(f"/clients/{client_id}", status_code=303)
+
+
+# --- Demandes recues via /demande (lecture admin, authentifiee) ---
+
+@app.get("/submissions", response_class=HTMLResponse, dependencies=[AuthDependency])
+def submissions_page(request: Request):
+    return templates.TemplateResponse(
+        request, "submissions.html", {"submissions": db.list_intake_submissions()}
+    )
+
+
+@app.get("/submissions/{submission_id}", response_class=HTMLResponse, dependencies=[AuthDependency])
+def submission_detail_page(request: Request, submission_id: str):
+    submission = db.get_intake_submission(submission_id)
+    if submission is None:
+        return HTMLResponse("Demande introuvable", status_code=404)
+    job = db.get_job(submission["job_id"]) if submission["job_id"] else None
+    docs: dict[str, str] = {}
+    if job is not None and job["project_dir"]:
+        docs_dir = Path(job["project_dir"]) / "docs"
+        if docs_dir.is_dir():
+            for doc_file in sorted(docs_dir.glob("*.md")):
+                docs[doc_file.name] = doc_file.read_text(encoding="utf-8", errors="replace")
+    return templates.TemplateResponse(
+        request,
+        "submission_detail.html",
+        {"submission": submission, "job": job, "docs": docs, "client_id": submission["client_id"]},
+    )
 
 
 # --- Actions en attente d'approbation ---

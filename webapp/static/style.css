@@ -93,7 +93,7 @@ label {
   color: var(--muted);
 }
 
-input[type="text"], input[type="password"], select, textarea {
+input[type="text"], input[type="password"], input[type="email"], select, textarea {
   display: block;
   width: 100%;
   margin-top: 0.35rem;
@@ -151,7 +151,7 @@ th { color: var(--muted); font-weight: 500; }
 .status-succeeded { background: rgba(62, 207, 142, 0.15); color: var(--success); }
 .status-failed { background: rgba(255, 92, 92, 0.15); color: var(--danger); }
 
-pre.result, pre.task-text {
+pre.result, pre.task-text, pre.brief, details pre {
   white-space: pre-wrap;
   word-break: break-word;
   background: var(--bg);
@@ -161,6 +161,9 @@ pre.result, pre.task-text {
   font-size: 0.9rem;
 }
 .error-text { color: var(--danger); }
+
+details { margin-bottom: 0.75rem; }
+details summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 
 .login-box {
   max-width: 340px;

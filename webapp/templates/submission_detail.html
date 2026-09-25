@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Demande -- Mes agents{% endblock %}
+{% block content %}
+<section class="card">
+  <h2>{{ submission.contact_name }}{% if submission.company %} -- {{ submission.company }}{% endif %}</h2>
+  <p class="muted">{{ submission.contact_email }} -- recu le {{ submission.created_at }}</p>
+  <p><span class="badge status-{{ submission.status }}">{{ submission.status }}</span></p>
+  <p><a href="/clients/{{ client_id }}">Voir la fiche client creee automatiquement</a></p>
+
+  <h3>Besoin decrit par le prospect</h3>
+  <pre class="brief">{{ submission.brief }}</pre>
+
+  {% if submission.status == "failed" and job %}
+  <p class="error">Le job a echoue : {{ job.error }}</p>
+  {% elif submission.status in ("queued", "running") %}
+  <p class="muted">Generation en cours -- recharge cette page dans quelques instants.</p>
+  {% elif docs %}
+  <h3>Documents generes automatiquement (a relire avant tout envoi au prospect)</h3>
+  {% for filename, content in docs.items() %}
+  <details>
+    <summary>{{ filename }}</summary>
+    <pre>{{ content }}</pre>
+  </details>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Aucun document trouve -- voir le detail du job pour l'erreur eventuelle.</p>
+  {% endif %}
+
+  {% if job %}<p><a href="/jobs/{{ job.id }}">Voir le detail technique du job</a></p>{% endif %}
+</section>
+{% endblock %}

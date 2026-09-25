@@ -96,6 +96,30 @@ def _run_marketing_job(row) -> str:
     return _final_message_text(result)
 
 
+def _run_intake_job(row) -> str:
+    """kind='intake' : brief soumis via le formulaire public /demande. Appelle
+    coding_team.research_agent.build_agent() DIRECTEMENT -- jamais build_supervisor() -- pour
+    qu'un brief ecrit par un inconnu sur internet ne puisse JAMAIS router vers un agent avec
+    outil shell (backend/frontend/test_deploy). Un seul aller-retour, pas de conversation
+    continue avec un anonyme."""
+    from coding_team.research_agent import build_agent
+
+    resolved = set_working_directory(Path(row["project_dir"]))
+    agent = build_agent()
+    # research_agent est normalement invoque plusieurs fois de suite (une fois par tour de
+    # conversation avec un humain qui repond aux questions), chaque appel disposant de son
+    # propre budget de config/models.yaml. Ici, pas d'humain pour repondre entre deux appels --
+    # il doit produire les 4 documents en UN SEUL passage, donc budget double.
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": row["task"]}]},
+        config={
+            "recursion_limit": get_max_iterations("research_agent") * 2,
+            "callbacks": usage_callbacks("research_agent"),
+        },
+    )
+    return f"[repertoire: {resolved}]\n\n{_final_message_text(result)}"
+
+
 def _run_execute_action_job(row) -> str:
     """kind='execute_action' : le champ `task` contient l'id de l'action a executer (pas une
     instruction en langage naturel). Ne passe JAMAIS par un modele -- appelle directement
@@ -105,19 +129,35 @@ def _run_execute_action_job(row) -> str:
     return execute_action(row["task"])
 
 
+def _sync_intake_status(job_id: str, status: str) -> None:
+    """Un job kind='intake' est toujours lie a une ligne intake_submissions -- on la tient a
+    jour en meme temps que le job pour que /submissions n'ait pas besoin de jointure."""
+    submission = db.get_intake_submission_by_job(job_id)
+    if submission is not None:
+        db.update_intake_status(submission["id"], status)
+
+
 def _process_one(row) -> None:
+    if row["kind"] == "intake":
+        _sync_intake_status(row["id"], "running")
     try:
         if row["kind"] == "code":
             result = _run_code_job(row)
         elif row["kind"] == "marketing":
             result = _run_marketing_job(row)
+        elif row["kind"] == "intake":
+            result = _run_intake_job(row)
         elif row["kind"] == "execute_action":
             result = _run_execute_action_job(row)
         else:
             raise ValueError(f"Type de job inconnu: {row['kind']!r}")
         db.mark_succeeded(row["id"], result)
+        if row["kind"] == "intake":
+            _sync_intake_status(row["id"], "succeeded")
     except Exception:  # noqa: BLE001 -- un job en echec ne doit jamais arreter le worker
         db.mark_failed(row["id"], traceback.format_exc())
+        if row["kind"] == "intake":
+            _sync_intake_status(row["id"], "failed")
 
 
 def _worker_loop() -> None:

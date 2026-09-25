@@ -8,6 +8,21 @@
 </a>
 {% endif %}
 
+{% if submissions_count > 0 %}
+<a href="/submissions" class="banner-alert">
+  {{ submissions_count }} demande(s) recue(s) via le portail public
+</a>
+{% endif %}
+
+<section class="card">
+  <h2>Portail client</h2>
+  <p class="muted">
+    Lien a transmettre a un prospect pour qu'il decrive son projet -- genere automatiquement un
+    premier cahier des charges/devis a relire dans <a href="/submissions">Demandes</a>.
+  </p>
+  <p><code>{{ request.url_for('intake_form') }}</code></p>
+</section>
+
 <section class="card">
   <h2>Nouvelle instruction</h2>
   <form method="post" action="/jobs" id="new-job-form">

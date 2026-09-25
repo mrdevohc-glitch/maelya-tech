@@ -35,7 +35,9 @@ def generate_ad_image(prompt: str, size: str = "1024x1024") -> str:
     image_bytes = base64.b64decode(response.data[0].b64_json)
 
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid.uuid4().hex[:10]}.png"
+    # UUID complet (128 bits) : ce nom de fichier est la SEULE protection d'acces pour /media,
+    # servi publiquement sans authentification (voir webapp/app.py) -- pas de version tronquee.
+    filename = f"{uuid.uuid4().hex}.png"
     target = IMAGES_DIR / filename
     target.write_bytes(image_bytes)
 
