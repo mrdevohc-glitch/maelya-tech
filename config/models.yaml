@@ -1,0 +1,101 @@
+# Un modele par agent. Format : "provider:model_id" (compatible langchain.chat_models.init_chat_model).
+# Changer de fournisseur = changer cette ligne, aucun code a toucher.
+#
+# Configuration actuelle : split entre deux comptes.
+# - backend_agent / frontend_agent (le travail de code le plus critique) -> OpenAI direct,
+#   gpt-5.3-codex (paye avec le vrai budget OpenAI -- OPENAI_API_KEY).
+# - test_deploy_agent / security_agent (lisent/testent du code) -> OpenRouter, GRATUIT,
+#   nex-agi/nex-n2.5-pro:free (specialise agent de code, CONFIRME utilisable en appel direct).
+# - Les 8 autres agents (research, contenu, email, social, seo, ads, les 2 supervisors) ->
+#   OpenAI direct, gpt-5-mini (tres bon marche : $0.25/$2 par million de tokens) suite a une
+#   panne prolongee du fournisseur gratuit (voir historique ci-dessous) -- pas gratuit mais
+#   quasi negligeable et fiable.
+#
+# HISTORIQUE DES PIEGES DEJA RENCONTRES (utile avant de retenter du gratuit un jour) :
+# - "thinkingmachines/inkling:free" et "thinkingmachines/inkling-small:free" -> 403 "only
+#   available on agentic harnesses" : reserves aux applications enregistrees chez OpenRouter
+#   (Cursor, Cline...), IMPOSSIBLES a appeler depuis un script comme le notre.
+# - "poolside/laguna-s-2.1:free" -> fonctionne en appel direct mais frequents 429 (surcharge).
+# - "nvidia/nemotron-3-super-120b-a12b:free" -> fonctionne en appel direct mais a subi une
+#   panne prolongee (502 "Service temporarily overloaded") qui a resiste a 4 tentatives de
+#   relance automatique -- retire de la config le 2026-09-15 suite a cette panne.
+# Avant de remettre un modele ":free" en config sur plusieurs agents, le tester d'abord tout
+# seul sur UN agent avec une petite tache, pas l'assigner partout d'un coup.
+#
+# ATTENTION limites du tier gratuit OpenRouter (verifie sur openrouter.ai/docs le 2026-09-15) :
+# - 20 requetes/minute sur n'importe quel modele finissant par ":free"
+# - 50 requetes/JOUR au total si tu n'as JAMAIS achete de credit OpenRouter
+# - 1000 requetes/jour si tu as achete au moins 10$ de credit un jour (meme si le solde
+#   actuel est revenu a 0 -- c'est le total achete a vie qui compte, pas le solde)
+# - Un solde NEGATIF bloque meme les modeles gratuits (erreur 402) -- rester a 0 ou plus.
+#
+# NB frontend_agent : screenshot_page (tools/browser_preview.py) ne renvoie une image que si
+# le `model` commence par "anthropic:" (Claude direct). Avec gpt-5.3-codex ici, l'agent recoit
+# le chemin du fichier, pas d'analyse visuelle automatique.
+#
+# Chaque appel modele (tous providers confondus) a une relance automatique integree
+# (common/models.py, 4 tentatives, delai croissant) en cas de surcharge temporaire.
+
+research_agent:
+  model: "openai:gpt-5-mini"
+  max_tokens: 4000
+  max_iterations: 15
+
+frontend_agent:
+  model: "openai:gpt-5.3-codex"
+  max_tokens: 8000
+  max_iterations: 25
+
+backend_agent:
+  model: "openai:gpt-5.3-codex"
+  max_tokens: 8000
+  max_iterations: 25
+
+test_deploy_agent:
+  model: "openai:nex-agi/nex-n2.5-pro:free"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
+  max_tokens: 4000
+  max_iterations: 20
+
+security_agent:
+  model: "openai:nex-agi/nex-n2.5-pro:free"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
+  max_tokens: 4000
+  max_iterations: 15
+
+content_agent:
+  model: "openai:gpt-5-mini"
+  max_tokens: 3000
+  max_iterations: 8
+
+coding_supervisor:
+  model: "openai:gpt-5-mini"
+  max_tokens: 4000
+  max_iterations: 10
+
+email_agent:
+  model: "openai:gpt-5-mini"
+  max_tokens: 3000
+  max_iterations: 8
+
+social_agent:
+  model: "openai:gpt-5-mini"
+  max_tokens: 3000
+  max_iterations: 8
+
+seo_content_agent:
+  model: "openai:gpt-5-mini"
+  max_tokens: 4000
+  max_iterations: 10
+
+ads_cro_agent:
+  model: "openai:gpt-5-mini"
+  max_tokens: 4000
+  max_iterations: 10
+
+marketing_supervisor:
+  model: "openai:gpt-5-mini"
+  max_tokens: 3000
+  max_iterations: 8

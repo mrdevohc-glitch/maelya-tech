@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Agents{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Mes agents</a>
+    {% if request.session.get("authenticated") %}
+    <nav class="topnav">
+      <a href="/">Tableau de bord</a>
+      <a href="/clients">Clients</a>
+      <a href="/approvals">Approbations</a>
+    </nav>
+    <form method="post" action="/logout" class="logout-form">
+      <button type="submit" class="link-button">Se deconnecter</button>
+    </form>
+    {% endif %}
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

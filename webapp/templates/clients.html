@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Clients -- Mes agents{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Nouveau client</h2>
+  <form method="post" action="/clients">
+    <label>
+      Nom
+      <input type="text" name="name" required placeholder="ex: Boulangerie Dupont">
+    </label>
+    <button type="submit">Creer</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Clients</h2>
+  {% if clients %}
+  <table>
+    <tr><th>Nom</th><th>Plateformes configurees</th><th></th></tr>
+    {% for c in clients %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>{{ c.platforms | join(", ") if c.platforms else "Aucune" }}</td>
+      <td><a href="/clients/{{ c.id }}">Gerer</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucun client pour l'instant.</p>{% endif %}
+</section>
+{% endblock %}

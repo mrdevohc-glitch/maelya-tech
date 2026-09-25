@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ client.name }} -- Mes agents{% endblock %}
+{% block content %}
+
+<p><a href="/clients">&larr; Retour aux clients</a></p>
+
+<section class="card">
+  <h2>{{ client.name }}</h2>
+  <p class="muted">Plateformes configurees : {{ platforms | join(", ") if platforms else "aucune" }}</p>
+</section>
+
+<section class="card">
+  <h2>Profil business</h2>
+  <p class="muted">Utilise par les agents marketing pour ce client (ton de marque, ICP, positionnement...).</p>
+  <form method="post" action="/clients/{{ client.id }}/profile">
+    <textarea name="business_profile" rows="10" placeholder="Nom, produit, client ideal, ton de marque...">{{ client.business_profile or "" }}</textarea>
+    <button type="submit">Enregistrer</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Identifiants Facebook / Instagram (Meta)</h2>
+  <p class="muted">
+    Jeton d'acces longue duree de la Page Facebook (Meta for Developers). Chiffre avant
+    stockage -- jamais reaffiche apres enregistrement.
+    {% if "meta" in platforms %}<strong>Deja configure.</strong> Renseigner de nouveau remplace l'existant.{% endif %}
+  </p>
+  <form method="post" action="/clients/{{ client.id }}/credentials/meta">
+    <label>
+      Page ID (Facebook)
+      <input type="text" name="page_id" required>
+    </label>
+    <label>
+      Access Token (Page)
+      <input type="password" name="access_token" required>
+    </label>
+    <label>
+      Instagram Business User ID (optionnel)
+      <input type="text" name="ig_user_id">
+    </label>
+    <button type="submit">Enregistrer les identifiants</button>
+  </form>
+</section>
+{% endblock %}

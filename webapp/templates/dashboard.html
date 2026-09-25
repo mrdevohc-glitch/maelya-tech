@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord -- Mes agents{% endblock %}
+{% block content %}
+
+{% if pending_count > 0 %}
+<a href="/approvals" class="banner-alert">
+  {{ pending_count }} action(s) en attente d'approbation -- rien n'est publie jusqu'a ta validation
+</a>
+{% endif %}
+
+<section class="card">
+  <h2>Nouvelle instruction</h2>
+  <form method="post" action="/jobs" id="new-job-form">
+    <label>
+      Equipe
+      <select name="kind" id="kind-select">
+        <option value="code">Code</option>
+        <option value="marketing">Marketing</option>
+      </select>
+    </label>
+
+    <label>
+      Instruction
+      <textarea name="task" rows="4" required placeholder="Decris la tache ou colle ta reponse a une question precedente..."></textarea>
+    </label>
+
+    <label id="project-dir-field">
+      Dossier de projet (laisse vide pour un nouveau projet)
+      <input type="text" name="project_dir" placeholder="ex: output/projects/mon-site">
+    </label>
+
+    <label id="thread-field" class="hidden-field">
+      Nom de la conversation (laisse vide pour "default")
+      <input type="text" name="thread" placeholder="default">
+    </label>
+
+    <label id="client-field" class="hidden-field">
+      Client (necessaire pour publier reellement -- pas pour de simples brouillons)
+      <select name="client_id">
+        <option value="">-- Aucun (brouillons uniquement) --</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label id="allow-push-field" class="checkbox-field">
+      <input type="checkbox" name="allow_push" value="on">
+      Autoriser git push sur ce job (bloque par defaut)
+    </label>
+
+    <button type="submit">Lancer</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Projets code</h2>
+  {% if projects %}
+  <table>
+    <tr><th>Dossier</th><th>Jobs</th><th>Derniere activite</th></tr>
+    {% for p in projects %}
+    <tr>
+      <td><code>{{ p.project_dir }}</code></td>
+      <td>{{ p.job_count }}</td>
+      <td>{{ p.last_activity }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucun projet pour l'instant.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Conversations marketing</h2>
+  {% if threads %}
+  <table>
+    <tr><th>Thread</th><th>Jobs</th><th>Derniere activite</th></tr>
+    {% for t in threads %}
+    <tr>
+      <td><code>{{ t.thread }}</code></td>
+      <td>{{ t.job_count }}</td>
+      <td>{{ t.last_activity }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucune conversation marketing pour l'instant.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Jobs recents</h2>
+  {% if recent_jobs %}
+  <table>
+    <tr><th>Quand</th><th>Equipe</th><th>Instruction</th><th>Statut</th></tr>
+    {% for j in recent_jobs %}
+    <tr>
+      <td>{{ j.created_at }}</td>
+      <td>{{ j.kind }}</td>
+      <td><a href="/jobs/{{ j.id }}">{{ j.task[:80] }}{% if j.task|length > 80 %}...{% endif %}</a></td>
+      <td><span class="badge status-{{ j.status }}">{{ j.status }}</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucun job pour l'instant.</p>{% endif %}
+</section>
+
+<script>
+  const kindSelect = document.getElementById('kind-select');
+  const projectField = document.getElementById('project-dir-field');
+  const threadField = document.getElementById('thread-field');
+  const allowPushField = document.getElementById('allow-push-field');
+  const clientField = document.getElementById('client-field');
+
+  function syncFields() {
+    const isCode = kindSelect.value === 'code';
+    projectField.classList.toggle('hidden-field', !isCode);
+    allowPushField.classList.toggle('hidden-field', !isCode);
+    threadField.classList.toggle('hidden-field', isCode);
+    clientField.classList.toggle('hidden-field', isCode);
+  }
+  kindSelect.addEventListener('change', syncFields);
+  syncFields();
+</script>
+{% endblock %}

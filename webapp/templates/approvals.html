@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Approbations -- Mes agents{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Actions en attente / traitees</h2>
+  <p class="muted">Rien n'est jamais publie sans validation ici.</p>
+  {% if actions %}
+  <table>
+    <tr><th>Quand</th><th>Client</th><th>Plateforme</th><th>Type</th><th>Statut</th><th></th></tr>
+    {% for a in actions %}
+    <tr>
+      <td>{{ a.created_at }}</td>
+      <td>{{ a.client_name }}</td>
+      <td>{{ a.platform }}</td>
+      <td>{{ a.action_type }}</td>
+      <td><span class="badge status-{{ a.status }}">{{ a.status }}</span></td>
+      <td><a href="/approvals/{{ a.id }}">Voir</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucune action pour l'instant.</p>{% endif %}
+</section>
+{% endblock %}

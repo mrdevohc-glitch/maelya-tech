@@ -1,0 +1,20 @@
+<div id="job-status" class="job-status"
+  {% if job.status in ['queued', 'running'] %}
+  hx-get="/jobs/{{ job.id }}/fragment" hx-trigger="every 3s" hx-swap="outerHTML"
+  {% endif %}>
+  <p><strong>Statut :</strong> <span class="badge status-{{ job.status }}">{{ job.status }}</span></p>
+  {% if job.started_at %}<p class="muted">Demarre : {{ job.started_at }}</p>{% endif %}
+  {% if job.finished_at %}<p class="muted">Termine : {{ job.finished_at }}</p>{% endif %}
+
+  {% if job.status == 'succeeded' %}
+  <h3>Resultat</h3>
+  <pre class="result">{{ job.result }}</pre>
+  {% elif job.status == 'failed' %}
+  <h3>Erreur</h3>
+  <pre class="result error-text">{{ job.error }}</pre>
+  {% elif job.status == 'running' %}
+  <p class="muted">En cours... (cette page se rafraichit automatiquement toutes les 3s)</p>
+  {% else %}
+  <p class="muted">En attente qu'un job en cours se termine...</p>
+  {% endif %}
+</div>

@@ -1,0 +1,15 @@
+[Unit]
+Description=Plateforme web pour l'equipe d'agents
+After=network.target
+
+[Service]
+Type=simple
+User=mrohc
+WorkingDirectory=/home/mrohc/agents
+ExecStart=/home/mrohc/agents/.venv/bin/uvicorn webapp.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

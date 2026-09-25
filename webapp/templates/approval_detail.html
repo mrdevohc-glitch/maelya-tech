@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Action {{ action.id }} -- Mes agents{% endblock %}
+{% block content %}
+
+<p><a href="/approvals">&larr; Retour aux approbations</a></p>
+
+<section class="card">
+  <h2>Action {{ action.id }}</h2>
+  <p><strong>Client :</strong> {{ client_name }}</p>
+  <p><strong>Plateforme :</strong> {{ action.platform }} &mdash; <strong>Type :</strong> {{ action.action_type }}</p>
+  <p><strong>Statut :</strong> <span class="badge status-{{ action.status }}">{{ action.status }}</span></p>
+
+  <h3>Contenu propose</h3>
+  <pre class="result">{{ action.payload_json }}</pre>
+
+  {% if action.status == 'pending' %}
+  <div class="approval-actions">
+    <form method="post" action="/approvals/{{ action.id }}/approve">
+      <button type="submit" class="approve-button">Approuver et publier</button>
+    </form>
+    <form method="post" action="/approvals/{{ action.id }}/reject">
+      <button type="submit" class="reject-button">Rejeter</button>
+    </form>
+  </div>
+  {% elif action.status == 'approved' %}
+  <p class="muted">Approuve, execution en cours ou en attente du worker...</p>
+  {% elif action.status in ('executed', 'failed') %}
+  <h3>Resultat</h3>
+  <pre class="result {{ 'error-text' if action.status == 'failed' else '' }}">{{ action.result }}</pre>
+  {% elif action.status == 'rejected' %}
+  <p class="muted">Cette action a ete rejetee, rien n'a ete publie.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Job {{ job.id }} -- Mes agents{% endblock %}
+{% block content %}
+
+<p><a href="/">&larr; Retour au tableau de bord</a></p>
+
+<section class="card">
+  <h2>Job {{ job.id }} ({{ job.kind }})</h2>
+  <p><strong>Instruction :</strong></p>
+  <pre class="task-text">{{ job.task }}</pre>
+  {% if job.project_dir %}<p class="muted">Dossier : <code>{{ job.project_dir }}</code></p>{% endif %}
+  {% if job.thread %}<p class="muted">Conversation : <code>{{ job.thread }}</code></p>{% endif %}
+
+  {% include "_job_status.html" %}
+</section>
+
+<section class="card">
+  <h2>Repondre / continuer cette conversation</h2>
+  <form method="post" action="/jobs">
+    <input type="hidden" name="kind" value="{{ job.kind }}">
+    {% if job.kind == 'code' %}
+    <input type="hidden" name="project_dir" value="{{ job.project_dir or '' }}">
+    {% else %}
+    <input type="hidden" name="thread" value="{{ job.thread or 'default' }}">
+    {% endif %}
+    <label>
+      Ta reponse
+      <textarea name="task" rows="3" required></textarea>
+    </label>
+    {% if job.kind == 'code' %}
+    <label class="checkbox-field">
+      <input type="checkbox" name="allow_push" value="on">
+      Autoriser git push sur ce job
+    </label>
+    {% endif %}
+    <button type="submit">Envoyer</button>
+  </form>
+</section>
+{% endblock %}
