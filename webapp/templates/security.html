@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Securite -- Mes agents{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Nouvelle cible de scan</h2>
+  <p class="muted">
+    Un scan actif reel (nmap + nikto) sera lance chaque semaine sur toute cible ici.
+    <strong>N'ajoute qu'une infrastructure que tu possedes ou controles.</strong>
+  </p>
+  <form method="post" action="/security/targets">
+    <label>
+      Type de cible
+      <select name="target_type" id="target-type-select">
+        <option value="self">Notre propre infrastructure</option>
+        <option value="third_party">Projet client heberge chez un tiers (Vercel, etc.)</option>
+      </select>
+    </label>
+
+    <p id="third-party-warning" class="error hidden-field">
+      Attention : la plupart des hebergeurs (Vercel, Netlify...) restreignent les scans de
+      securite automatises dans leurs conditions d'utilisation. Verifie les conditions de
+      l'hebergeur avant d'autoriser cette cible.
+    </p>
+
+    <label id="client-field-security" class="hidden-field">
+      Client concerne
+      <select name="client_id">
+        <option value="">-- Aucun --</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Hostname (pour le scan de ports)
+      <input type="text" name="hostname" required placeholder="ex: studio.maelya.tech">
+    </label>
+    <label>
+      URL complete (pour le scan de vulnerabilites web)
+      <input type="text" name="url" required placeholder="ex: https://studio.maelya.tech">
+    </label>
+    <label>
+      Confirmation d'autorisation (obligatoire)
+      <textarea name="authorized_note" rows="2" required placeholder="ex: Je possede/controle cette infrastructure et autorise un scan actif hebdomadaire."></textarea>
+    </label>
+    <button type="submit">Autoriser et ajouter</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Cibles autorisees</h2>
+  {% if targets %}
+  <table>
+    <tr><th>Hostname</th><th>Type</th><th>Dernier scan</th><th></th></tr>
+    {% for t in targets %}
+    <tr>
+      <td>{{ t.hostname }}</td>
+      <td>{{ "Propre infra" if t.target_type == "self" else "Tiers" }}</td>
+      <td>{{ t.last_scan_at or "Jamais encore" }}</td>
+      <td>
+        {% for r in t.last_results %}
+        <a href="/security/results/{{ r.id }}">{{ r.scan_type }}</a>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucune cible autorisee pour l'instant.</p>{% endif %}
+</section>
+
+<script>
+  const targetTypeSelect = document.getElementById('target-type-select');
+  const thirdPartyWarning = document.getElementById('third-party-warning');
+  const clientField = document.getElementById('client-field-security');
+
+  function syncSecurityFields() {
+    const isThirdParty = targetTypeSelect.value === 'third_party';
+    thirdPartyWarning.classList.toggle('hidden-field', !isThirdParty);
+    clientField.classList.toggle('hidden-field', !isThirdParty);
+  }
+  targetTypeSelect.addEventListener('change', syncSecurityFields);
+  syncSecurityFields();
+</script>
+{% endblock %}

@@ -188,6 +188,34 @@ Chaque client a ses propres identifiants, chiffres au repos (`common/crypto.py`,
 `PLATFORM_CREDENTIALS_KEY` genere automatiquement) et strictement isoles -- un job pour le
 client A n'a jamais acces aux identifiants du client B.
 
+## Deploiement autonome de projets (Vercel)
+
+`test_deploy_agent` peut proposer un vrai deploiement Vercel du projet en cours
+(`stage_vercel_deploy`) -- **jamais deploye directement**, meme principe que la publication :
+en attente dans `/approvals` jusqu'a validation humaine. Le jeton Vercel du client (obtenu sur
+vercel.com/account/tokens) se configure sur `/clients/<id>`, section "Identifiants Vercel".
+
+**A savoir** : Vercel protege par defaut chaque URL de deploiement derriere sa propre connexion
+(SSO) sur un compte personnel/Hobby -- ce n'est pas un bug de ce projet. Pour un site
+publiquement accessible sans connexion Vercel, desactive "Deployment Protection" dans les
+parametres du projet Vercel, ou assigne-lui un domaine de production.
+
+## Tests d'intrusion hebdomadaires (`/security`)
+
+Scan actif reel (nmap : ports ; nikto : vulnerabilites web) contre des cibles **explicitement
+autorisees** par toi dans `/security` -- jamais une cible devinee ou fournie par un agent. Un
+planificateur interne (`webapp/job_runner.py`, thread separe du worker de jobs) relance
+automatiquement chaque cible toutes les 7 jours.
+
+**Important -- conditions d'utilisation des hebergeurs tiers** : scanner activement un projet
+heberge chez un tiers (Vercel, Netlify...) peut violer leurs conditions d'utilisation, meme
+si c'est ton propre projet -- l'infrastructure sous-jacente est partagee. `/security` affiche
+un avertissement a l'ajout d'une cible "tierce", mais la responsabilite de verifier les
+conditions de l'hebergeur avant d'autoriser reste la tienne. Aucun risque de ce type pour notre
+propre serveur (infrastructure entierement possedee).
+
+Necessite `nmap` et `nikto` installes sur le serveur (`sudo apt install nmap nikto`).
+
 ### Obtenir un jeton Facebook Page (pour un client)
 
 1. Cree une app sur [developers.facebook.com](https://developers.facebook.com/apps/) (type

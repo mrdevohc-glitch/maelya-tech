@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Resultat scan -- Mes agents{% endblock %}
+{% block content %}
+
+<p><a href="/security">&larr; Retour securite</a></p>
+
+<section class="card">
+  <h2>{{ target.hostname }} -- {{ result.scan_type }}</h2>
+  <p class="muted">{{ result.created_at }}</p>
+  <pre class="result">{{ result.result_text }}</pre>
+</section>
+{% endblock %}

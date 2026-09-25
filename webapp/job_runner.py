@@ -29,6 +29,8 @@ from common.workdir import set_working_directory
 from webapp import db
 
 _POLL_INTERVAL_SECONDS = 2
+_SECURITY_SCHEDULER_INTERVAL_SECONDS = 3600  # verifie une fois par heure quelles cibles sont dues
+_SECURITY_SCAN_MAX_AGE_DAYS = 7
 
 
 def _slugify(text: str) -> str:
@@ -130,6 +132,26 @@ def _run_execute_action_job(row) -> str:
     return execute_action(row["task"])
 
 
+def _run_security_scan_job(row) -> str:
+    """kind='security_scan' : le champ `task` contient l'id d'une ligne scan_targets (jamais
+    un hostname/URL en clair -- toujours relu depuis la table des cibles explicitement
+    autorisees). Aucun LLM implique -- deterministe, comme execute_action."""
+    from tools.security_active_scan import run_port_scan, run_web_vuln_scan
+
+    target = db.get_scan_target(row["task"])
+    if target is None:
+        raise ValueError(f"Cible de scan introuvable: {row['task']}")
+
+    port_result = run_port_scan(target["hostname"])
+    db.create_scan_result(target["id"], "port", port_result)
+
+    web_result = run_web_vuln_scan(target["url"])
+    db.create_scan_result(target["id"], "web_vuln", web_result)
+
+    db.mark_scan_target_scanned(target["id"])
+    return f"Scan termine pour {target['hostname']}.\n\n[port]\n{port_result}\n\n[web]\n{web_result}"
+
+
 def _sync_intake_status(job_id: str, status: str) -> None:
     """Un job kind='intake' est toujours lie a une ligne intake_submissions -- on la tient a
     jour en meme temps que le job pour que /submissions n'ait pas besoin de jointure."""
@@ -150,6 +172,8 @@ def _process_one(row) -> None:
             result = _run_intake_job(row)
         elif row["kind"] == "execute_action":
             result = _run_execute_action_job(row)
+        elif row["kind"] == "security_scan":
+            result = _run_security_scan_job(row)
         else:
             raise ValueError(f"Type de job inconnu: {row['kind']!r}")
         db.mark_succeeded(row["id"], result)
@@ -170,8 +194,24 @@ def _worker_loop() -> None:
             time.sleep(_POLL_INTERVAL_SECONDS)
 
 
+def _security_scheduler_loop() -> None:
+    """Verifie periodiquement quelles cibles (webapp.db.scan_targets, toujours explicitement
+    autorisees a l'ajout -- voir /security) n'ont pas ete scannees depuis 7 jours, et cree un
+    job kind='security_scan' pour chacune. Ne lit et n'ecrit QUE cette table -- aucune cible
+    ne peut venir d'ailleurs (agent, portail public, etc.)."""
+    while True:
+        try:
+            for target in db.list_due_scan_targets(_SECURITY_SCAN_MAX_AGE_DAYS):
+                if not db.has_pending_security_scan(target["id"]):
+                    db.create_job(kind="security_scan", task=target["id"])
+        except Exception:  # noqa: BLE001 -- le planificateur ne doit jamais s'arreter
+            traceback.print_exc()
+        time.sleep(_SECURITY_SCHEDULER_INTERVAL_SECONDS)
+
+
 def start_background_worker() -> threading.Thread:
-    """A appeler une fois au demarrage du serveur (voir platform/app.py)."""
+    """A appeler une fois au demarrage du serveur (voir webapp/app.py)."""
     thread = threading.Thread(target=_worker_loop, name="job-worker", daemon=True)
     thread.start()
+    threading.Thread(target=_security_scheduler_loop, name="security-scheduler", daemon=True).start()
     return thread

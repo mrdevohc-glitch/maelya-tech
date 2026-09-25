@@ -371,6 +371,52 @@ def reject_action(action_id: str):
     return RedirectResponse(f"/approvals/{action_id}", status_code=303)
 
 
+# --- Tests d'intrusion (scans actifs sur cibles explicitement autorisees) ---
+
+@app.get("/security", response_class=HTMLResponse, dependencies=[AuthDependency])
+def security_page(request: Request):
+    targets = [dict(t) for t in db.list_scan_targets()]
+    for target in targets:
+        results = db.list_scan_results(target["id"], limit=2)
+        target["last_results"] = results
+    return templates.TemplateResponse(
+        request, "security.html", {"targets": targets, "clients": db.list_clients()}
+    )
+
+
+@app.post("/security/targets", dependencies=[AuthDependency])
+def create_scan_target_form(
+    target_type: str = Form(...),
+    hostname: str = Form(...),
+    url: str = Form(...),
+    authorized_note: str = Form(...),
+    client_id: str = Form(""),
+):
+    if not authorized_note.strip():
+        return HTMLResponse(
+            "La confirmation d'autorisation est obligatoire -- retour /security", status_code=400
+        )
+    db.create_scan_target(
+        target_type=target_type,
+        hostname=hostname.strip(),
+        url=url.strip(),
+        authorized_note=authorized_note.strip(),
+        client_id=client_id.strip() or None,
+    )
+    return RedirectResponse("/security", status_code=303)
+
+
+@app.get("/security/results/{result_id}", response_class=HTMLResponse, dependencies=[AuthDependency])
+def scan_result_page(request: Request, result_id: str):
+    result = db.get_scan_result(result_id)
+    if result is None:
+        return HTMLResponse("Resultat introuvable", status_code=404)
+    target = db.get_scan_target(result["target_id"])
+    return templates.TemplateResponse(
+        request, "security_result.html", {"result": result, "target": target}
+    )
+
+
 @app.get("/jobs/{job_id}", response_class=HTMLResponse, dependencies=[AuthDependency])
 def job_page(request: Request, job_id: str):
     job = db.get_job(job_id)

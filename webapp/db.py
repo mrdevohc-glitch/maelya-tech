@@ -7,7 +7,7 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -78,6 +78,26 @@ CREATE TABLE IF NOT EXISTS pending_actions (
 );
 CREATE INDEX IF NOT EXISTS idx_pending_actions_status ON pending_actions(status);
 CREATE INDEX IF NOT EXISTS idx_pending_actions_client ON pending_actions(client_id);
+
+CREATE TABLE IF NOT EXISTS scan_targets (
+    id TEXT PRIMARY KEY,
+    client_id TEXT,                     -- NULL = notre propre infra (pas un projet client)
+    target_type TEXT NOT NULL,          -- 'self' | 'third_party'
+    hostname TEXT NOT NULL,             -- pour nmap
+    url TEXT NOT NULL,                  -- pour nikto (http(s)://...)
+    authorized_note TEXT NOT NULL,      -- confirmation ecrite par l'utilisateur, obligatoire
+    created_at TEXT NOT NULL,
+    last_scan_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS scan_results (
+    id TEXT PRIMARY KEY,
+    target_id TEXT NOT NULL,
+    scan_type TEXT NOT NULL,            -- 'port' | 'web_vuln'
+    result_text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_scan_results_target ON scan_results(target_id);
 """
 
 
@@ -388,3 +408,84 @@ def count_intake_submissions_today() -> int:
             "SELECT COUNT(*) AS n FROM intake_submissions WHERE created_at >= ?", (start_of_day,)
         ).fetchone()
         return row["n"]
+
+
+# --- Cibles de scan securite (tests d'intrusion hebdomadaires) ---
+
+def create_scan_target(
+    target_type: str, hostname: str, url: str, authorized_note: str, client_id: str | None = None
+) -> str:
+    target_id = uuid.uuid4().hex[:12]
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO scan_targets (id, client_id, target_type, hostname, url, "
+            "authorized_note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (target_id, client_id, target_type, hostname, url, authorized_note, _now()),
+        )
+    return target_id
+
+
+def get_scan_target(target_id: str) -> sqlite3.Row | None:
+    with _connect() as conn:
+        return conn.execute("SELECT * FROM scan_targets WHERE id=?", (target_id,)).fetchone()
+
+
+def list_scan_targets() -> list[sqlite3.Row]:
+    with _connect() as conn:
+        return conn.execute("SELECT * FROM scan_targets ORDER BY created_at ASC").fetchall()
+
+
+def list_due_scan_targets(max_age_days: int = 7) -> list[sqlite3.Row]:
+    """Cibles jamais scannees, ou dont le dernier scan date de plus de `max_age_days` --
+    utilise par le scheduler hebdomadaire (webapp/job_runner.py). Ne lit QUE cette table --
+    jamais une cible fournie ailleurs (agent, portail public, etc.)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM scan_targets WHERE last_scan_at IS NULL OR last_scan_at < ?", (cutoff,)
+        ).fetchall()
+
+
+def has_pending_security_scan(target_id: str) -> bool:
+    """Evite que le planificateur (verifie toutes les heures) ne cree un deuxieme job pour la
+    meme cible si le premier n'a pas encore ete traite par le worker."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM jobs WHERE kind='security_scan' AND task=? AND status IN "
+            "('queued', 'running') LIMIT 1",
+            (target_id,),
+        ).fetchone()
+        return row is not None
+
+
+def mark_scan_target_scanned(target_id: str) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE scan_targets SET last_scan_at=? WHERE id=?", (_now(), target_id))
+
+
+def create_scan_result(target_id: str, scan_type: str, result_text: str) -> str:
+    result_id = uuid.uuid4().hex[:12]
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO scan_results (id, target_id, scan_type, result_text, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (result_id, target_id, scan_type, result_text, _now()),
+        )
+    return result_id
+
+
+def list_scan_results(target_id: str | None = None, limit: int = 100) -> list[sqlite3.Row]:
+    query = "SELECT * FROM scan_results WHERE 1=1"
+    params: list = []
+    if target_id:
+        query += " AND target_id=?"
+        params.append(target_id)
+    query += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+    with _connect() as conn:
+        return conn.execute(query, params).fetchall()
+
+
+def get_scan_result(result_id: str) -> sqlite3.Row | None:
+    with _connect() as conn:
+        return conn.execute("SELECT * FROM scan_results WHERE id=?", (result_id,)).fetchone()
