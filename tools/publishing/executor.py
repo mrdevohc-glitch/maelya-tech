@@ -1,6 +1,8 @@
-"""Execute une action reelle (publication) apres validation humaine explicite. JAMAIS appele
-par un agent/modele -- uniquement par webapp/job_runner.py (job kind='execute_action'), lui-
-meme declenche uniquement quand l'utilisateur clique "Approuver" dans /approvals."""
+"""Execute une action reelle (publication OU deploiement) apres validation humaine explicite.
+JAMAIS appele par un agent/modele -- uniquement par webapp/job_runner.py (job
+kind='execute_action'), lui-meme declenche uniquement quand l'utilisateur clique "Approuver"
+dans /approvals. Point d'extension unique pour toute nouvelle plateforme (publication ou
+deploiement) : ajouter un cas dans _dispatch() ci-dessous."""
 from __future__ import annotations
 
 import json
@@ -8,6 +10,7 @@ import os
 from pathlib import Path
 
 from common.crypto import decrypt_json
+from tools.deployment import vercel_client
 from tools.publishing import meta_client
 from webapp import db
 
@@ -68,5 +71,12 @@ def _dispatch(action) -> str:
             ig_user_id, credentials["access_token"], image_url, payload.get("caption", "")
         )
         return f"Publie sur Instagram, post_id={post_id}"
+
+    if platform == "vercel" and action["action_type"] == "deploy":
+        deployment_url = vercel_client.deploy_directory(
+            payload["project_dir"], credentials["api_token"], payload["project_name"],
+            team_id=credentials.get("team_id"),
+        )
+        return f"Deploye sur Vercel : {deployment_url}"
 
     raise ValueError(f"Combinaison plateforme/surface non supportee: {platform}/{surface}")

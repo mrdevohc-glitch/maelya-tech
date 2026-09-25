@@ -48,6 +48,7 @@ def _run_code_job(row) -> str:
     from coding_team.supervisor import build_supervisor
 
     set_allow_push(bool(row["allow_push"]))
+    set_current_client(row["client_id"])  # lu par tools/deployment/staging.py
     project_dir = (
         Path(row["project_dir"]) if row["project_dir"] else OUTPUT_DIR / "projects" / _slugify(row["task"])
     )

@@ -41,4 +41,24 @@
     <button type="submit">Enregistrer les identifiants</button>
   </form>
 </section>
+
+<section class="card">
+  <h2>Identifiants Vercel</h2>
+  <p class="muted">
+    Jeton d'acces personnel Vercel (vercel.com/account/tokens). Chiffre avant stockage --
+    jamais reaffiche apres enregistrement.
+    {% if "vercel" in platforms %}<strong>Deja configure.</strong> Renseigner de nouveau remplace l'existant.{% endif %}
+  </p>
+  <form method="post" action="/clients/{{ client.id }}/credentials/vercel">
+    <label>
+      Access Token
+      <input type="password" name="api_token" required>
+    </label>
+    <label>
+      Team ID (optionnel, si le projet appartient a une team Vercel)
+      <input type="text" name="team_id">
+    </label>
+    <button type="submit">Enregistrer les identifiants</button>
+  </form>
+</section>
 {% endblock %}

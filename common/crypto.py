@@ -8,11 +8,18 @@ import json
 import os
 
 from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 
-from common.env_utils import update_env_var
+from common.env_utils import ENV_PATH, update_env_var
 
 
 def get_or_create_credentials_key() -> bytes:
+    # Charge .env explicitement au lieu de compter sur l'appelant (webapp/app.py le fait au
+    # demarrage, mais un script autonome qui importe seulement common.crypto/webapp.db --
+    # comme un test isole -- ne le fait pas, et verrait a tort la cle comme absente, la
+    # regenererait, et ECRASERAIT la vraie cle dans .env. load_dotenv() est sans effet si
+    # deja charge (ne remplace pas un os.environ deja defini par defaut).
+    load_dotenv(ENV_PATH)
     key = os.environ.get("PLATFORM_CREDENTIALS_KEY", "")
     if not key:
         key = Fernet.generate_key().decode("utf-8")

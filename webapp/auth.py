@@ -7,9 +7,10 @@ import secrets
 import time
 
 import bcrypt
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request
 
-from common.env_utils import update_env_var
+from common.env_utils import ENV_PATH, update_env_var
 
 _MAX_ATTEMPTS = 5
 _WINDOW_SECONDS = 5 * 60
@@ -60,6 +61,7 @@ def verify_password(plain: str) -> bool:
 def get_or_create_secret_key() -> str:
     """Cle utilisee pour signer le cookie de session. Generee une seule fois et persistee dans
     .env -- sans ca, un redemarrage du serveur invaliderait toutes les sessions actives."""
+    load_dotenv(ENV_PATH)  # voir le commentaire equivalent dans common/crypto.py
     key = os.environ.get("PLATFORM_SECRET_KEY", "")
     if key:
         return key

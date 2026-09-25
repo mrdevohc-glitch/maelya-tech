@@ -231,7 +231,7 @@ def create_job_form(
         task=task,
         project_dir=(project_dir.strip() or None) if kind == "code" else None,
         thread=(thread.strip() or None) if kind == "marketing" else None,
-        client_id=(client_id.strip() or None) if kind == "marketing" else None,
+        client_id=client_id.strip() or None,
         allow_push=bool(allow_push),
     )
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
@@ -282,6 +282,19 @@ def save_meta_credentials_form(
     if ig_user_id.strip():
         payload["ig_user_id"] = ig_user_id.strip()
     db.save_client_credentials(client_id, "meta", encrypt_json(payload))
+    return RedirectResponse(f"/clients/{client_id}", status_code=303)
+
+
+@app.post("/clients/{client_id}/credentials/vercel", dependencies=[AuthDependency])
+def save_vercel_credentials_form(
+    client_id: str,
+    api_token: str = Form(...),
+    team_id: str = Form(""),
+):
+    payload = {"api_token": api_token.strip()}
+    if team_id.strip():
+        payload["team_id"] = team_id.strip()
+    db.save_client_credentials(client_id, "vercel", encrypt_json(payload))
     return RedirectResponse(f"/clients/{client_id}", status_code=303)
 
 

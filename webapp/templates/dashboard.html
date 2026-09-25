@@ -49,10 +49,10 @@
       <input type="text" name="thread" placeholder="default">
     </label>
 
-    <label id="client-field" class="hidden-field">
-      Client (necessaire pour publier reellement -- pas pour de simples brouillons)
+    <label id="client-field">
+      Client (optionnel -- necessaire pour publier/deployer reellement, pas pour de simples brouillons/tests)
       <select name="client_id">
-        <option value="">-- Aucun (brouillons uniquement) --</option>
+        <option value="">-- Aucun --</option>
         {% for c in clients %}
         <option value="{{ c.id }}">{{ c.name }}</option>
         {% endfor %}
@@ -129,7 +129,6 @@
     projectField.classList.toggle('hidden-field', !isCode);
     allowPushField.classList.toggle('hidden-field', !isCode);
     threadField.classList.toggle('hidden-field', isCode);
-    clientField.classList.toggle('hidden-field', isCode);
   }
   kindSelect.addEventListener('change', syncFields);
   syncFields();
