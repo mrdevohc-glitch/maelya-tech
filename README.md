@@ -124,11 +124,30 @@ la CLI), et suit le statut en direct (rafraichissement automatique pendant qu'un
 **Hebergement reel actuel** : auto-heberge sur un PC personnel (Ubuntu Server, service systemd
 `agents-platform`), expose publiquement via Cloudflare Tunnel (`cloudflared`, aucun port ouvert
 sur la box) sur `https://studio.maelya.tech`, avec Cloudflare Access en 2e barriere (code email
-avant meme la page de connexion) sur tout le hostname SAUF les chemins publics `/media/*` et
-`/demande*` (policy "Bypass" dediee -- voir section portail client). `deploy/` garde des
-templates generiques (`setup_server.sh`, `agents-platform.service`) utiles comme reference si
-un jour le service change de machine. Pas encore de deploiement base sur `git pull` -- mise a
-jour actuelle par copie manuelle des fichiers modifies sur le serveur.
+avant meme la page de connexion) sur tout le hostname SAUF les chemins publics `/media/*`,
+`/demande*` et `/static/*` (policy "Bypass" dediee sur chacun -- voir section portail client).
+`deploy/` garde des templates generiques (`setup_server.sh`, `agents-platform.service`) utiles
+comme reference si un jour le service change de machine.
+
+**Deploiement : "push pour deployer"**. Le serveur a un depot git bare (`~/agents.git`) avec un
+hook `post-receive` qui checkout la branche `master` dans `~/agents` (`.env`/`webapp.sqlite*`
+jamais touches, exclus du suivi git), reinstalle `requirements.txt` (idempotent) puis termine le
+process (`pkill -u mrohc -f 'uvicorn webapp.app:app'`) -- `systemd` (`Restart=always`) le relance
+immediatement avec le nouveau code, sans sudo. Pour deployer :
+
+```bash
+git push production master
+```
+
+`production` pointe vers `mrohc@ssh.maelya.tech:agents.git`. **SSH a distance** (meme hors du
+reseau de la maison) passe par le meme tunnel Cloudflare que le dashboard, avec Cloudflare
+Access en 2e barriere sur `ssh.maelya.tech` : policy Allow par email (acces manuel du
+proprietaire) + policy Allow par **Service Token** (Zero Trust -> Access -> Service Auth,
+`CF-Access-Client-Id`/`CF-Access-Client-Secret`) pour un acces automatise/non-interactif.
+`cloudflared access ssh` avec `--service-token-id`/`--service-token-secret` est casse dans les
+versions clientes >= 2026.6.0 (regression connue, ignore le jeton et retombe sur une
+authentification navigateur) -- utiliser 2026.5.1 pour le client qui fait le
+`ProxyCommand`/`~/.ssh/config`.
 
 ## Portail client public (`/demande`)
 
