@@ -24,11 +24,14 @@ cp .env.example .env            # puis remplir la cle du fournisseur utilise (vo
 
 Chaque agent utilise le fournisseur defini dans [config/models.yaml](config/models.yaml) — il
 faut la cle API correspondante dans `.env` (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ou
-`OPENROUTER_API_KEY` selon ce qui est configure). Configuration actuelle : tous les agents
-passent par OpenRouter (`OPENROUTER_API_KEY`) et utilisent des modeles Claude -- OpenRouter
-facture ces modeles au meme prix que directement chez Anthropic (voir section OpenRouter plus
-bas). Ces cles sont distinctes de tout abonnement Claude/ChatGPT — ce projet appelle les API
-directement et facture a l'usage.
+`OPENROUTER_API_KEY` selon ce qui est configure). Configuration actuelle (voir les commentaires
+en tete de `config/models.yaml` pour le detail complet et l'historique) : `backend_agent`/
+`frontend_agent` sur OpenAI direct (le travail de code le plus critique), les 8 autres agents
+sur OpenRouter avec `deepseek/deepseek-v4.1-flash` (tres bon marche, ~$0.03/$0.29 par million de
+tokens) pour reduire les couts. **Important** : ce modele n'est pas gratuit -- il faut du vrai
+credit sur le compte OpenRouter (https://openrouter.ai/settings/credits, quelques dollars
+suffisent vu le prix) sinon les appels echouent en 402. Ces cles sont distinctes de tout
+abonnement Claude/ChatGPT — ce projet appelle les API directement et facture a l'usage.
 
 Avant de lancer l'equipe marketing (ou `content_agent` cote code), remplis
 [context/business.md](context/business.md) : plus il est precis, moins les agents posent de
@@ -183,6 +186,11 @@ dans le tableau de bord) :
   `/approvals` jusqu'a validation humaine explicite.
 - Generer de vraies images de creas (`generate_ad_image`, via l'API OpenAI) -- pas
   d'approbation necessaire, ca n'ecrit qu'un fichier local.
+- Generer de petits montages video promo (`generate_ad_video`, via l'API Video unifiee
+  d'OpenRouter, `google/veo-3.1-lite` par defaut -- ~0.03$/0.05$ par seconde sans/avec son) --
+  meme principe, pas d'approbation necessaire, ecrit un fichier local dans
+  `output/marketing/videos/`. L'appel bloque le temps de la generation reelle (jusqu'a
+  quelques minutes), c'est normal.
 
 Chaque client a ses propres identifiants, chiffres au repos (`common/crypto.py`,
 `PLATFORM_CREDENTIALS_KEY` genere automatiquement) et strictement isoles -- un job pour le

@@ -11,6 +11,7 @@ from common.prompts import MULTIPLE_CHOICE_QUESTIONS_INSTRUCTION
 from common.skills import load_skills
 from tools.marketing_output import write_draft
 from tools.publishing.staging import stage_facebook_post, stage_instagram_post
+from tools.publishing.video_gen import generate_ad_video
 
 _SKILLS_CONTEXT = load_skills(
     ("social", "social-content", "SKILL.md"),
@@ -32,6 +33,11 @@ Deux modes distincts, ne les confonds jamais :
   que l'action est en attente et doit etre validee dans le tableau de bord (/approvals) --
   ne dis JAMAIS "c'est publie" ou "c'est en ligne", ce serait faux.
 
+Utilise generate_ad_video pour un petit montage video (format vertical 9:16 pour story/reel,
+ou 16:9) quand un post video est demande -- ca ne fait qu'ecrire un fichier local, pas
+d'approbation necessaire pour ca. Ca prend du temps reel (jusqu'a quelques minutes) : attends
+le resultat, ne promets jamais de notifier plus tard.
+
 Profil business (client courant) :
 {load_business_context(get_current_client())}
 
@@ -44,7 +50,7 @@ Reference d'expertise a appliquer :
 def build_agent():
     return create_react_agent(
         model=get_model("social_agent"),
-        tools=[write_draft, stage_facebook_post, stage_instagram_post],
+        tools=[write_draft, stage_facebook_post, stage_instagram_post, generate_ad_video],
         prompt=_build_prompt(),
         name="social_agent",
     )

@@ -12,6 +12,7 @@ from common.prompts import MULTIPLE_CHOICE_QUESTIONS_INSTRUCTION
 from common.skills import load_skills
 from tools.marketing_output import write_draft
 from tools.publishing.image_gen import generate_ad_image
+from tools.publishing.video_gen import generate_ad_video
 
 _SKILLS_CONTEXT = load_skills(
     ("ads_cro", "paid-ads", "SKILL.md"),
@@ -28,8 +29,11 @@ def _build_prompt() -> str:
     return f"""Tu es un expert publicite payante et optimisation de conversion (CRO).
 Tu produis en brouillon (write_draft) : concepts de creas pub, structure de campagne
 (ciblage, budget indicatif, enchere), et recommandations CRO concretes pour pages/formulaires/
-popups. Utilise generate_ad_image pour produire de vraies images de creas quand c'est demande
-(ca ne fait qu'ecrire un fichier local, pas besoin d'approbation pour ca). Tu ne lances jamais
+popups. Utilise generate_ad_image pour produire de vraies images de creas et generate_ad_video
+pour de petits montages video promo (quelques secondes, format story/reel possible) quand c'est
+demande -- ca ne fait qu'ecrire un fichier local, pas besoin d'approbation pour ca. La generation
+video prend du temps reel (jusqu'a quelques minutes) : c'est normal, attends le resultat, ne dis
+jamais que tu vas "notifier plus tard". Tu ne lances jamais
 une campagne ni ne depenses de budget reel, tu n'as pas l'outil pour -- cette capacite arrivera
 dans une prochaine mise a jour (Google Ads/Meta Ads), toujours avec validation humaine obligatoire.
 
@@ -45,7 +49,7 @@ Reference d'expertise a appliquer :
 def build_agent():
     return create_react_agent(
         model=get_model("ads_cro_agent"),
-        tools=[write_draft, generate_ad_image],
+        tools=[write_draft, generate_ad_image, generate_ad_video],
         prompt=_build_prompt(),
         name="ads_cro_agent",
     )

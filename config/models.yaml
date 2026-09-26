@@ -1,15 +1,36 @@
 # Un modele par agent. Format : "provider:model_id" (compatible langchain.chat_models.init_chat_model).
 # Changer de fournisseur = changer cette ligne, aucun code a toucher.
 #
-# Configuration actuelle : split entre deux comptes.
+# Configuration actuelle (mise a jour 2026-09-26, cout optimise via OpenRouter) :
 # - backend_agent / frontend_agent (le travail de code le plus critique) -> OpenAI direct,
-#   gpt-5.3-codex (paye avec le vrai budget OpenAI -- OPENAI_API_KEY).
+#   gpt-5.3-codex (paye avec le vrai budget OpenAI -- OPENAI_API_KEY). Alternative moins chere
+#   identifiee mais PAS encore basculee (voir "qwen3-coder" plus bas) -- a tester en live sur
+#   UN agent avant de generaliser, discipline deja etablie dans ce fichier.
 # - test_deploy_agent / security_agent (lisent/testent du code) -> OpenRouter, GRATUIT,
 #   nex-agi/nex-n2.5-pro:free (specialise agent de code, CONFIRME utilisable en appel direct).
 # - Les 8 autres agents (research, contenu, email, social, seo, ads, les 2 supervisors) ->
-#   OpenAI direct, gpt-5-mini (tres bon marche : $0.25/$2 par million de tokens) suite a une
-#   panne prolongee du fournisseur gratuit (voir historique ci-dessous) -- pas gratuit mais
-#   quasi negligeable et fiable.
+#   OpenRouter, deepseek/deepseek-v4.1-flash ($0.035/$0.29 par MILLION de tokens, verifie en
+#   direct via GET /api/v1/models le 2026-09-26 -- ~7x moins cher que gpt-5-mini utilise avant).
+#   Contexte 1M tokens. CE N'EST PAS UN MODELE ":free" -- pas de limite 50/1000 requetes/jour,
+#   mais ca CONSOMME du vrai credit OpenRouter payant.
+#
+# !!! BLOQUANT CONNU (2026-09-26) : le compte OpenRouter est a 0$ de credit (jamais rechargeR
+# -- verifie en direct via GET /api/v1/credits). deepseek-v4.1-flash n'est PAS gratuit : sans
+# credit sur le compte, tout appel echouera avec une erreur 402 Payment Required. Il faut que
+# l'utilisateur ajoute quelques dollars de credit sur https://openrouter.ai/settings/credits
+# avant que cette config fonctionne reellement (vu le prix, 5-10$ tient tres longtemps).
+#
+# Alternative backend/frontend identifiee mais non appliquee : qwen/qwen3-coder-30b-a3b-instruct
+# ($0.07/$0.28 par million, specialise code, verifie en direct le 2026-09-26) coute une fraction
+# de gpt-5.3-codex. Pas bascule par prudence -- backend/frontend sont le travail le plus critique
+# de ce projet, et la regle etablie ici est de tester un nouveau modele en live sur UN agent
+# avant de remplacer definitivement (voir l'historique des pannes plus bas). A tester des que
+# du credit OpenRouter existe.
+#
+# Generation image/video (marketing) : image via OpenAI direct (gpt-image-1, OPENAI_API_KEY,
+# deja fonctionnel avec du vrai credit) ; video via OpenRouter (google/veo-3.1-lite,
+# tools/publishing/video_gen.py) -- pas d'equivalent video chez OpenAI actuellement, et
+# OpenRouter est de toute facon le point d'entree le plus simple pour ce type de generation.
 #
 # HISTORIQUE DES PIEGES DEJA RENCONTRES (utile avant de retenter du gratuit un jour) :
 # - "thinkingmachines/inkling:free" et "thinkingmachines/inkling-small:free" -> 403 "only
@@ -37,7 +58,9 @@
 # (common/models.py, 4 tentatives, delai croissant) en cas de surcharge temporaire.
 
 research_agent:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 4000
   max_iterations: 15
 
@@ -66,36 +89,50 @@ security_agent:
   max_iterations: 15
 
 content_agent:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 3000
   max_iterations: 8
 
 coding_supervisor:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 4000
   max_iterations: 10
 
 email_agent:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 3000
   max_iterations: 8
 
 social_agent:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 3000
   max_iterations: 8
 
 seo_content_agent:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 4000
   max_iterations: 10
 
 ads_cro_agent:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 4000
   max_iterations: 10
 
 marketing_supervisor:
-  model: "openai:gpt-5-mini"
+  model: "openai:deepseek/deepseek-v4.1-flash"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 3000
   max_iterations: 8
