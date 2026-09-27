@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Projets -- Mes agents{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Projets</h1>
+  <p class="muted">Tous les dossiers de projet "code" deja traites par l'equipe.</p>
+</div>
+
+{% if projects %}
+<div class="project-grid">
+  {% for p in projects %}
+  <a href="/projects/{{ p.project_dir }}" class="project-card">
+    <div class="project-card-header">
+      <span class="project-card-name">{{ p.project_dir.split('/')[-1] }}</span>
+      {% if p.last_status %}<span class="badge status-{{ p.last_status }}">{{ p.last_status }}</span>{% endif %}
+    </div>
+    <p class="muted project-card-path"><code>{{ p.project_dir }}</code></p>
+    <p class="muted">Client : {{ p.client_name or "aucun" }}</p>
+    <p class="muted">{{ p.job_count }} job(s) -- derniere activite {{ p.last_activity }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">Aucun projet pour l'instant -- lance une premiere instruction depuis le tableau de bord.</p>
+{% endif %}
+{% endblock %}

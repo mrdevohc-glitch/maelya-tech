@@ -13,6 +13,8 @@ from common.skills import load_skills
 from tools.marketing_output import write_draft
 from tools.publishing.image_gen import generate_ad_image
 from tools.publishing.video_gen import generate_ad_video
+from tools.view_image import make_view_reference_image_tool
+from tools.marketing_output import resolve_marketing_path
 
 _SKILLS_CONTEXT = load_skills(
     ("ads_cro", "paid-ads", "SKILL.md"),
@@ -33,7 +35,9 @@ popups. Utilise generate_ad_image pour produire de vraies images de creas et gen
 pour de petits montages video promo (quelques secondes, format story/reel possible) quand c'est
 demande -- ca ne fait qu'ecrire un fichier local, pas besoin d'approbation pour ca. La generation
 video prend du temps reel (jusqu'a quelques minutes) : c'est normal, attends le resultat, ne dis
-jamais que tu vas "notifier plus tard". Tu ne lances jamais
+jamais que tu vas "notifier plus tard". Si la tache mentionne une image de reference jointe
+(inputs/xxx.png), utilise view_reference_image pour la consulter avant de creer une creation
+similaire. Tu ne lances jamais
 une campagne ni ne depenses de budget reel, tu n'as pas l'outil pour -- cette capacite arrivera
 dans une prochaine mise a jour (Google Ads/Meta Ads), toujours avec validation humaine obligatoire.
 
@@ -49,7 +53,10 @@ Reference d'expertise a appliquer :
 def build_agent():
     return create_react_agent(
         model=get_model("ads_cro_agent"),
-        tools=[write_draft, generate_ad_image, generate_ad_video],
+        tools=[
+            write_draft, generate_ad_image, generate_ad_video,
+            make_view_reference_image_tool("ads_cro_agent", resolve_marketing_path),
+        ],
         prompt=_build_prompt(),
         name="ads_cro_agent",
     )

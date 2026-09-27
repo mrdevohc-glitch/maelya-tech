@@ -120,9 +120,19 @@ persistante.
 # -> http://127.0.0.1:8000
 ```
 
-Le dashboard liste les projets/conversations existants, permet d'en lancer un nouveau ou de
-repondre a un job en cours (equivalent web du "relance avec le meme --project-dir/--thread" de
-la CLI), et suit le statut en direct (rafraichissement automatique pendant qu'un job tourne).
+Le dashboard donne une vue d'ensemble (projets actifs, jobs en cours, approbations en attente,
+clients) et une activite recente unifiee. La page **Projets** (`/projects`) liste chaque dossier
+de projet code avec le client lie et son dernier statut ; sa fiche (`/projects/<dossier>`) donne
+l'historique complet des jobs et un formulaire d'instruction deja rattache a ce projet (plus
+besoin de taper le chemin du dossier a la main). Une instruction (code ou marketing) peut
+inclure une ou plusieurs **images de reference** (maquette, capture, visuel produit) --
+enregistrees dans `inputs/` (dans le projet pour le code, sous `output/marketing/inputs/<thread>/`
+pour le marketing) et consultables par l'agent via `view_reference_image`
+(`tools/view_image.py`) : l'agent voit reellement l'image seulement s'il tourne sur un modele
+Anthropic (meme limite que `screenshot_page`, voir plus haut) -- sinon il recoit le chemin avec
+un avertissement honnete plutot que de deviner. Repondre a un job en cours (equivalent web du
+"relance avec le meme --project-dir/--thread" de la CLI) suit le statut en direct
+(rafraichissement automatique pendant qu'un job tourne).
 
 **Hebergement reel actuel** : auto-heberge sur un PC personnel (Ubuntu Server, service systemd
 `agents-platform`), expose publiquement via Cloudflare Tunnel (`cloudflared`, aucun port ouvert

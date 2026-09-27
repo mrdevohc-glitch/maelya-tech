@@ -76,6 +76,19 @@ def get_agent_config(agent_name: str) -> dict:
     return config[agent_name]
 
 
+_VISION_TOOL_RESULT_PROVIDERS = {"anthropic"}
+
+
+def supports_vision_tool_result(agent_name: str) -> bool:
+    """True si le modele configure pour cet agent peut recevoir une image dans un resultat
+    d'outil (tool_result) -- seul Anthropic le supporte parmi les fournisseurs de ce projet.
+    OpenAI/OpenRouter n'acceptent une image que dans un message utilisateur, pas un tool_result.
+    Utilise par tools/browser_preview.py (screenshot_page) et tools/view_image.py."""
+    model_ref = get_agent_config(agent_name).get("model", "")
+    provider = model_ref.split(":", 1)[0] if ":" in model_ref else ""
+    return provider in _VISION_TOOL_RESULT_PROVIDERS
+
+
 @lru_cache(maxsize=None)
 def get_model(agent_name: str):
     """Retourne une instance de chat model LangChain configuree pour cet agent.

@@ -241,14 +241,37 @@ def list_jobs(kind: str | None = None, status: str | None = None, limit: int = 1
 
 
 def list_projects() -> list[dict]:
-    """Dossiers de projet 'code' deja utilises, avec la date du dernier job."""
+    """Dossiers de projet 'code' deja utilises, avec la date du dernier job, son statut, et
+    le client lie (celui du job le plus recent qui en precise un, s'il y en a un)."""
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT project_dir, MAX(created_at) AS last_activity, COUNT(*) AS job_count "
-            "FROM jobs WHERE kind='code' AND project_dir IS NOT NULL "
-            "GROUP BY project_dir ORDER BY last_activity DESC"
+            """
+            WITH ranked AS (
+                SELECT project_dir, client_id, status,
+                       ROW_NUMBER() OVER (PARTITION BY project_dir ORDER BY created_at DESC) AS rn
+                FROM jobs WHERE kind='code' AND project_dir IS NOT NULL
+            )
+            SELECT r.project_dir,
+                   (SELECT MAX(created_at) FROM jobs j WHERE j.project_dir = r.project_dir) AS last_activity,
+                   (SELECT COUNT(*) FROM jobs j WHERE j.project_dir = r.project_dir) AS job_count,
+                   r.status AS last_status,
+                   c.id AS client_id,
+                   c.name AS client_name
+            FROM ranked r
+            LEFT JOIN clients c ON c.id = r.client_id
+            WHERE r.rn = 1
+            ORDER BY last_activity DESC
+            """
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_project_jobs(project_dir: str, limit: int = 100) -> list[sqlite3.Row]:
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM jobs WHERE kind='code' AND project_dir=? ORDER BY created_at DESC LIMIT ?",
+            (project_dir, limit),
+        ).fetchall()
 
 
 def list_marketing_threads() -> list[dict]:

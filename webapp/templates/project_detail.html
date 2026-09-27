@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ project_dir }} -- Mes agents{% endblock %}
+{% block content %}
+
+<p><a href="/projects">&larr; Retour aux projets</a></p>
+
+<div class="page-header">
+  <h1>{{ project_dir.split('/')[-1] }}</h1>
+  <p class="muted"><code>{{ project_dir }}</code></p>
+</div>
+
+<section class="card">
+  <h2>Nouvelle instruction pour ce projet</h2>
+  <form method="post" action="/jobs" enctype="multipart/form-data">
+    <input type="hidden" name="kind" value="code">
+    <input type="hidden" name="project_dir" value="{{ project_dir }}">
+    <label>
+      Instruction
+      <textarea name="task" rows="4" required placeholder="Decris la tache ou colle ta reponse a une question precedente..."></textarea>
+    </label>
+    <label>
+      Client (optionnel -- necessaire pour publier/deployer reellement)
+      <select name="client_id">
+        <option value="">-- Aucun --</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}" {% if jobs[0].client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Image(s) de reference (optionnel -- maquette, capture, visuel produit...)
+      <input type="file" name="images" accept="image/*" multiple>
+    </label>
+    <label class="checkbox-field">
+      <input type="checkbox" name="allow_push" value="on">
+      Autoriser git push sur ce job (bloque par defaut)
+    </label>
+    <button type="submit">Envoyer</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Historique des jobs</h2>
+  <table>
+    <tr><th>Quand</th><th>Instruction</th><th>Statut</th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td class="muted">{{ j.created_at }}</td>
+      <td><a href="/jobs/{{ j.id }}">{{ j.task[:100] }}{% if j.task|length > 100 %}...{% endif %}</a></td>
+      <td><span class="badge status-{{ j.status }}">{{ j.status }}</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}

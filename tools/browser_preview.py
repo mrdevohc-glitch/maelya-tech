@@ -14,15 +14,8 @@ import base64
 from langchain_core.tools import tool
 from playwright.sync_api import sync_playwright
 
-from common.models import get_agent_config
+from common.models import supports_vision_tool_result
 from common.workdir import get_working_directory, resolve
-
-_VISION_TOOL_RESULT_PROVIDERS = {"anthropic"}
-
-
-def _frontend_provider() -> str:
-    model_ref = get_agent_config("frontend_agent").get("model", "")
-    return model_ref.split(":", 1)[0] if ":" in model_ref else ""
 
 
 @tool
@@ -50,7 +43,7 @@ def screenshot_page(path_or_url: str, output_name: str = "preview.png") -> list[
         page.screenshot(path=str(output_path), full_page=True)
         browser.close()
 
-    if _frontend_provider() not in _VISION_TOOL_RESULT_PROVIDERS:
+    if not supports_vision_tool_result("frontend_agent"):
         return [{
             "type": "text",
             "text": (

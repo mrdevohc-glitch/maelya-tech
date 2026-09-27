@@ -12,7 +12,6 @@ a ce code existant.
 """
 from __future__ import annotations
 
-import re
 import threading
 import time
 import traceback
@@ -24,6 +23,7 @@ from common.current_client import set_current_client
 from common.guardrails import set_allow_push
 from common.models import get_max_iterations
 from common.paths import OUTPUT_DIR
+from common.slugify import slugify as _slugify
 from common.usage_tracking import usage_callbacks
 from common.workdir import set_working_directory
 from webapp import db
@@ -32,11 +32,6 @@ _POLL_INTERVAL_SECONDS = 2
 _SECURITY_SCHEDULER_INTERVAL_SECONDS = 3600  # verifie une fois par heure quelles cibles sont dues
 _SECURITY_SCAN_MAX_AGE_DAYS = 7
 _MARKETING_PLAN_SCHEDULER_INTERVAL_SECONDS = 3600  # verifie une fois par heure quels plans sont dus
-
-
-def _slugify(text: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug[:50] or "projet"
 
 
 def _final_message_text(result: dict) -> str:

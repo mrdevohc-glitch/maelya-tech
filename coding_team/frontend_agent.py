@@ -10,6 +10,8 @@ from common.prompts import NO_FUTURE_PROMISES_INSTRUCTION
 from tools.files import read_file, write_file, edit_file, list_files
 from tools.shell import run_shell
 from tools.browser_preview import screenshot_page
+from tools.view_image import make_view_reference_image_tool
+from common.workdir import resolve as _resolve_in_project
 
 SYSTEM_PROMPT = f"""Tu es un designer produit / ingenieur front-end senior. Ton objectif n'est
 pas juste "que ca marche" mais que ce soit visuellement soigne et professionnel : hierarchie
@@ -24,6 +26,10 @@ Boucle de travail obligatoire pour toute interface visuelle :
    incoherente, design generique) et itere avant de considerer le travail termine.
 
 Ne dis jamais qu'un design est termine sans etre passe par screenshot_page au moins une fois.
+
+Si la tache mentionne une image de reference jointe (chemin type inputs/xxx.png), utilise
+view_reference_image pour la consulter avant de commencer -- son avertissement te dira
+honnetement si tu peux vraiment la voir avec le modele actuel ou non.
 
 REGLE OBLIGATOIRE avant ta reponse finale : appelle list_files (liste reelle du disque, pas ta
 memoire) et ne mentionne comme "cree"/"modifie" QUE les fichiers qui y apparaissent vraiment.
@@ -41,7 +47,10 @@ main au supervisor. Le supervisor n'a aucun autre moyen de savoir ce que tu as f
 def build_agent():
     return create_react_agent(
         model=get_model("frontend_agent"),
-        tools=[read_file, write_file, edit_file, list_files, run_shell, screenshot_page],
+        tools=[
+            read_file, write_file, edit_file, list_files, run_shell, screenshot_page,
+            make_view_reference_image_tool("frontend_agent", _resolve_in_project),
+        ],
         prompt=SYSTEM_PROMPT,
         name="frontend_agent",
     )

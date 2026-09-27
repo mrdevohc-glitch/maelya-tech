@@ -2,11 +2,29 @@
 {% block title %}Tableau de bord -- Mes agents{% endblock %}
 {% block content %}
 
-{% if pending_count > 0 %}
-<a href="/approvals" class="banner-alert">
-  {{ pending_count }} action(s) en attente d'approbation -- rien n'est publie jusqu'a ta validation
-</a>
-{% endif %}
+<div class="page-header">
+  <h1>Tableau de bord</h1>
+  <p class="muted">Vue d'ensemble de l'activite des agents.</p>
+</div>
+
+<div class="kpi-grid">
+  <a href="/projects" class="kpi-tile">
+    <span class="kpi-value">{{ kpi.projects }}</span>
+    <span class="kpi-label">Projets</span>
+  </a>
+  <a href="/" class="kpi-tile {% if kpi.running_jobs > 0 %}kpi-tile--active{% endif %}">
+    <span class="kpi-value">{{ kpi.running_jobs }}</span>
+    <span class="kpi-label">Jobs en cours</span>
+  </a>
+  <a href="/approvals" class="kpi-tile {% if pending_count > 0 %}kpi-tile--warning{% endif %}">
+    <span class="kpi-value">{{ pending_count }}</span>
+    <span class="kpi-label">En attente d'approbation</span>
+  </a>
+  <a href="/clients" class="kpi-tile">
+    <span class="kpi-value">{{ kpi.clients }}</span>
+    <span class="kpi-label">Clients</span>
+  </a>
+</div>
 
 {% if submissions_count > 0 %}
 <a href="/submissions" class="banner-alert">
@@ -14,101 +32,77 @@
 </a>
 {% endif %}
 
-<section class="card">
-  <h2>Portail client</h2>
-  <p class="muted">
-    Lien a transmettre a un prospect pour qu'il decrive son projet -- genere automatiquement un
-    premier cahier des charges/devis a relire dans <a href="/submissions">Demandes</a>.
-  </p>
-  <p><code>{{ request.url_for('intake_form') }}</code></p>
-</section>
+<div class="dashboard-columns">
+  <section class="card">
+    <h2>Nouvelle instruction</h2>
+    <p class="muted">
+      Pour un projet existant, ouvre plutot sa <a href="/projects">fiche projet</a> --
+      l'instruction y est deja rattachee au bon dossier. Ce formulaire sert a demarrer un
+      NOUVEAU projet ou une conversation marketing.
+    </p>
+    <form method="post" action="/jobs" enctype="multipart/form-data" id="new-job-form">
+      <label>
+        Equipe
+        <select name="kind" id="kind-select">
+          <option value="code">Code</option>
+          <option value="marketing">Marketing</option>
+        </select>
+      </label>
+
+      <label>
+        Instruction
+        <textarea name="task" rows="4" required placeholder="Decris la tache..."></textarea>
+      </label>
+
+      <label id="thread-field" class="hidden-field">
+        Nom de la conversation (laisse vide pour "default")
+        <input type="text" name="thread" placeholder="default">
+      </label>
+
+      <label id="client-field">
+        Client (optionnel -- necessaire pour publier/deployer reellement, pas pour de simples brouillons/tests)
+        <select name="client_id">
+          <option value="">-- Aucun --</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Image(s) de reference (optionnel -- maquette, capture, visuel produit...)
+        <input type="file" name="images" accept="image/*" multiple>
+      </label>
+
+      <label id="allow-push-field" class="checkbox-field">
+        <input type="checkbox" name="allow_push" value="on">
+        Autoriser git push sur ce job (bloque par defaut)
+      </label>
+
+      <button type="submit">Lancer</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Portail client</h2>
+    <p class="muted">
+      Lien a transmettre a un prospect pour qu'il decrive son projet -- genere automatiquement un
+      premier cahier des charges/devis a relire dans <a href="/submissions">Demandes</a>.
+    </p>
+    <p><code>{{ request.url_for('intake_form') }}</code></p>
+  </section>
+</div>
 
 <section class="card">
-  <h2>Nouvelle instruction</h2>
-  <form method="post" action="/jobs" id="new-job-form">
-    <label>
-      Equipe
-      <select name="kind" id="kind-select">
-        <option value="code">Code</option>
-        <option value="marketing">Marketing</option>
-      </select>
-    </label>
-
-    <label>
-      Instruction
-      <textarea name="task" rows="4" required placeholder="Decris la tache ou colle ta reponse a une question precedente..."></textarea>
-    </label>
-
-    <label id="project-dir-field">
-      Dossier de projet (laisse vide pour un nouveau projet)
-      <input type="text" name="project_dir" placeholder="ex: output/projects/mon-site">
-    </label>
-
-    <label id="thread-field" class="hidden-field">
-      Nom de la conversation (laisse vide pour "default")
-      <input type="text" name="thread" placeholder="default">
-    </label>
-
-    <label id="client-field">
-      Client (optionnel -- necessaire pour publier/deployer reellement, pas pour de simples brouillons/tests)
-      <select name="client_id">
-        <option value="">-- Aucun --</option>
-        {% for c in clients %}
-        <option value="{{ c.id }}">{{ c.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <label id="allow-push-field" class="checkbox-field">
-      <input type="checkbox" name="allow_push" value="on">
-      Autoriser git push sur ce job (bloque par defaut)
-    </label>
-
-    <button type="submit">Lancer</button>
-  </form>
-</section>
-
-<section class="card">
-  <h2>Projets code</h2>
-  {% if projects %}
+  <h2>Activite recente</h2>
+  {% set all_recent = (recent_jobs | list) %}
+  {% if all_recent %}
   <table>
-    <tr><th>Dossier</th><th>Jobs</th><th>Derniere activite</th></tr>
-    {% for p in projects %}
+    <tr><th>Quand</th><th>Type</th><th>Instruction</th><th>Statut</th></tr>
+    {% for j in all_recent %}
     <tr>
-      <td><code>{{ p.project_dir }}</code></td>
-      <td>{{ p.job_count }}</td>
-      <td>{{ p.last_activity }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p class="muted">Aucun projet pour l'instant.</p>{% endif %}
-</section>
-
-<section class="card">
-  <h2>Conversations marketing</h2>
-  {% if threads %}
-  <table>
-    <tr><th>Thread</th><th>Jobs</th><th>Derniere activite</th></tr>
-    {% for t in threads %}
-    <tr>
-      <td><code>{{ t.thread }}</code></td>
-      <td>{{ t.job_count }}</td>
-      <td>{{ t.last_activity }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p class="muted">Aucune conversation marketing pour l'instant.</p>{% endif %}
-</section>
-
-<section class="card">
-  <h2>Jobs recents</h2>
-  {% if recent_jobs %}
-  <table>
-    <tr><th>Quand</th><th>Equipe</th><th>Instruction</th><th>Statut</th></tr>
-    {% for j in recent_jobs %}
-    <tr>
-      <td>{{ j.created_at }}</td>
-      <td>{{ j.kind }}</td>
+      <td class="muted">{{ j.created_at }}</td>
+      <td><span class="badge badge-kind-{{ j.kind }}">{{ "Code" if j.kind == "code" else "Marketing" }}</span></td>
       <td><a href="/jobs/{{ j.id }}">{{ j.task[:80] }}{% if j.task|length > 80 %}...{% endif %}</a></td>
       <td><span class="badge status-{{ j.status }}">{{ j.status }}</span></td>
     </tr>
@@ -119,14 +113,11 @@
 
 <script>
   const kindSelect = document.getElementById('kind-select');
-  const projectField = document.getElementById('project-dir-field');
   const threadField = document.getElementById('thread-field');
   const allowPushField = document.getElementById('allow-push-field');
-  const clientField = document.getElementById('client-field');
 
   function syncFields() {
     const isCode = kindSelect.value === 'code';
-    projectField.classList.toggle('hidden-field', !isCode);
     allowPushField.classList.toggle('hidden-field', !isCode);
     threadField.classList.toggle('hidden-field', isCode);
   }

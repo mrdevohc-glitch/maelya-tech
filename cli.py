@@ -15,7 +15,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -24,13 +23,9 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from common.guardrails import set_allow_push
 from common.models import get_max_iterations
 from common.paths import OUTPUT_DIR
+from common.slugify import slugify as _slugify
 from common.usage_tracking import usage_callbacks
 from common.workdir import set_working_directory
-
-
-def _slugify(text: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug[:50] or "projet"
 
 
 def _print_final_message(result: dict) -> None:

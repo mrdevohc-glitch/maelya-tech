@@ -21,27 +21,71 @@ body {
   line-height: 1.5;
 }
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  gap: 1rem;
+.app-shell {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  min-height: 100vh;
 }
 
-.topnav {
+.sidebar {
+  background: var(--card-bg);
+  border-right: 1px solid var(--border);
+  padding: 1.5rem 1.25rem;
   display: flex;
-  gap: 1.25rem;
-  margin-right: auto;
-  margin-left: 2rem;
+  flex-direction: column;
+  gap: 0.25rem;
 }
-.topnav a {
+
+.brand {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 2rem;
+  letter-spacing: -0.01em;
+}
+
+.sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+.sidenav a {
   color: var(--muted);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
 }
-.topnav a:hover { color: var(--text); }
+.sidenav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.03); }
+.sidenav a.active {
+  color: var(--text);
+  background: rgba(79, 140, 255, 0.12);
+  border-left-color: var(--accent);
+}
+
+.logout-form { margin-top: 1.5rem; }
+
+.main-content {
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 2.5rem;
+}
+.main-content--bare {
+  max-width: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.page-header { margin-bottom: 1.5rem; }
+.page-header h1 { margin-bottom: 0.25rem; }
 
 .banner-alert {
   display: block;
@@ -63,18 +107,77 @@ body {
 .approve-button { background: var(--success); }
 .reject-button { background: var(--danger); }
 
-.brand {
-  color: var(--text);
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.4rem;
   text-decoration: none;
-  font-weight: 600;
-  font-size: 1.1rem;
+  transition: border-color 0.15s ease;
+}
+.kpi-tile:hover { border-color: var(--accent); }
+.kpi-value {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.kpi-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.kpi-tile--warning .kpi-value { color: var(--warning); }
+.kpi-tile--active .kpi-value { color: var(--accent); }
+
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .dashboard-columns { grid-template-columns: 1fr; }
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .sidenav { flex-direction: row; flex-wrap: wrap; }
 }
 
-main {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 1.5rem;
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
 }
+.project-card {
+  display: block;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem 1.3rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s ease;
+}
+.project-card:hover { border-color: var(--accent); }
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.project-card-name { font-weight: 600; }
+.project-card-path { word-break: break-all; }
+
+.badge-kind-code { background: rgba(79, 140, 255, 0.15); color: var(--accent); }
+.badge-kind-marketing { background: rgba(62, 207, 142, 0.15); color: var(--success); }
 
 .card {
   background: var(--card-bg);
@@ -93,7 +196,7 @@ label {
   color: var(--muted);
 }
 
-input[type="text"], input[type="password"], input[type="email"], select, textarea {
+input[type="text"], input[type="password"], input[type="email"], input[type="file"], input[type="number"], select, textarea {
   display: block;
   width: 100%;
   margin-top: 0.35rem;

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -19,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from common.crypto import encrypt_json
 from common.paths import AGENTS_ROOT, OUTPUT_DIR
+from common.slugify import slugify
 from tools.publishing.image_gen import IMAGES_DIR
 from webapp import db
 from webapp.rate_limit import RateLimiter
@@ -313,18 +314,49 @@ def logout(request: Request):
     return RedirectResponse("/login", status_code=303)
 
 
+_ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+
+def _save_uploaded_images(images: list[UploadFile], dest_dir: Path) -> list[str]:
+    """Enregistre les images jointes dans dest_dir (nom = uuid court + extension d'origine,
+    extensions d'image uniquement -- jamais un type de fichier arbitraire). Retourne les noms
+    de fichiers effectivement ecrits (pas de chemin complet)."""
+    saved: list[str] = []
+    for image in images:
+        if not image.filename:
+            continue
+        ext = Path(image.filename).suffix.lower()
+        if ext not in _ALLOWED_IMAGE_EXTENSIONS:
+            continue
+        content = image.file.read()
+        if not content:
+            continue
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{uuid.uuid4().hex[:10]}{ext}"
+        (dest_dir / filename).write_bytes(content)
+        saved.append(filename)
+    return saved
+
+
 @app.get("/", response_class=HTMLResponse, dependencies=[AuthDependency])
 def dashboard(request: Request):
+    projects = db.list_projects()
+    running_jobs = db.list_jobs(status="running", limit=100)
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
-            "projects": db.list_projects(),
+            "projects": projects,
             "threads": db.list_marketing_threads(),
             "recent_jobs": db.list_jobs(limit=20),
             "clients": db.list_clients(),
             "pending_count": len(db.list_pending_actions(status="pending")),
             "submissions_count": len(db.list_intake_submissions()),
+            "kpi": {
+                "projects": len(projects),
+                "running_jobs": len(running_jobs),
+                "clients": len(db.list_clients()),
+            },
         },
     )
 
@@ -337,16 +369,66 @@ def create_job_form(
     thread: str = Form(""),
     client_id: str = Form(""),
     allow_push: str = Form(""),
+    images: list[UploadFile] = File(default=[]),
 ):
+    project_dir = project_dir.strip() or None
+    thread = thread.strip() or None
+    final_task = task
+
+    has_images = any(image.filename for image in images)
+    if has_images and kind == "code":
+        # Resolu ICI (pas laisse a job_runner.py) pour qu'un nouveau projet sans nom explicite
+        # utilise EXACTEMENT le meme dossier que celui ou l'image est ecrite -- sinon le slug
+        # calcule a partir du texte de la tache pourrait differer une fois la note d'image
+        # ajoutee ci-dessous (risque reel pour une tache courte).
+        if not project_dir:
+            project_dir = f"output/projects/{slugify(task)}"
+        dest_dir = Path(project_dir).resolve() / "inputs"
+        saved = _save_uploaded_images(images, dest_dir)
+        if saved:
+            paths_text = ", ".join(f"inputs/{name}" for name in saved)
+            final_task = (
+                f"{task}\n\nImage(s) jointe(s) : {paths_text} -- utilise view_reference_image "
+                f"pour la(les) consulter si besoin."
+            )
+    elif has_images and kind == "marketing":
+        dest_dir = OUTPUT_DIR / "marketing" / "inputs" / (thread or "default")
+        saved = _save_uploaded_images(images, dest_dir)
+        if saved:
+            paths_text = ", ".join(f"inputs/{thread or 'default'}/{name}" for name in saved)
+            final_task = (
+                f"{task}\n\nImage(s) jointe(s) : {paths_text} -- utilise view_reference_image "
+                f"pour la(les) consulter si besoin."
+            )
+
     job_id = db.create_job(
         kind=kind,
-        task=task,
-        project_dir=(project_dir.strip() or None) if kind == "code" else None,
-        thread=(thread.strip() or None) if kind == "marketing" else None,
+        task=final_task,
+        project_dir=project_dir if kind == "code" else None,
+        thread=thread if kind == "marketing" else None,
         client_id=client_id.strip() or None,
         allow_push=bool(allow_push),
     )
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
+
+
+# --- Projets ---
+
+@app.get("/projects", response_class=HTMLResponse, dependencies=[AuthDependency])
+def projects_page(request: Request):
+    return templates.TemplateResponse(request, "projects.html", {"projects": db.list_projects()})
+
+
+@app.get("/projects/{project_dir:path}", response_class=HTMLResponse, dependencies=[AuthDependency])
+def project_detail_page(request: Request, project_dir: str):
+    jobs = db.get_project_jobs(project_dir)
+    if not jobs:
+        return HTMLResponse("Projet introuvable", status_code=404)
+    return templates.TemplateResponse(
+        request,
+        "project_detail.html",
+        {"project_dir": project_dir, "jobs": jobs, "clients": db.list_clients()},
+    )
 
 
 # --- Clients ---
