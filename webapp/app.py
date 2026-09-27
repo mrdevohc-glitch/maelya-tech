@@ -40,6 +40,12 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "static"
 
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+# Cloudflare met en cache les fichiers statiques (.css/.js) a l'edge par defaut, independamment
+# des changements sur l'origine -- sans ca, un nouveau deploiement de style.css peut rester
+# invisible pour les visiteurs pendant des heures/jours meme apres un `git push production`
+# reussi (vecu en direct le 2026-09-27). Le mtime dans l'URL force Cloudflare/le navigateur a
+# traiter chaque nouvelle version comme une ressource differente.
+templates.env.globals["static_version"] = int((_STATIC_DIR / "style.css").stat().st_mtime)
 
 app = FastAPI(title="Agents -- tableau de bord", docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(
