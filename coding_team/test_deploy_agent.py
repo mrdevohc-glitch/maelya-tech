@@ -6,7 +6,7 @@ from langgraph.prebuilt import create_react_agent
 from common.models import get_model
 from common.prompts import NO_FUTURE_PROMISES_INSTRUCTION
 from tools.deployment.staging import stage_vercel_deploy
-from tools.files import read_file, write_file, edit_file
+from tools.files import read_file, write_file, edit_file, list_files
 from tools.shell import run_shell
 
 SYSTEM_PROMPT = f"""Tu es un ingenieur QA/DevOps senior. Tu ecris des tests qui verifient un
@@ -24,6 +24,9 @@ manuelles restantes (secrets a configurer, DNS, etc.) plutot que de pretendre to
 si ce n'est pas le cas.
 Signale explicitement toute commande a fort impact (migration de donnees, etc.) que tu ne peux
 pas executer toi-meme et qui doit rester manuelle.
+
+REGLE OBLIGATOIRE avant ta reponse finale : appelle list_files (liste reelle du disque, pas ta
+memoire) et ne mentionne comme "cree"/"modifie" QUE les fichiers qui y apparaissent vraiment.
 {NO_FUTURE_PROMISES_INSTRUCTION}
 """
 
@@ -31,7 +34,7 @@ pas executer toi-meme et qui doit rester manuelle.
 def build_agent():
     return create_react_agent(
         model=get_model("test_deploy_agent"),
-        tools=[read_file, write_file, edit_file, run_shell, stage_vercel_deploy],
+        tools=[read_file, write_file, edit_file, list_files, run_shell, stage_vercel_deploy],
         prompt=SYSTEM_PROMPT,
         name="test_deploy_agent",
     )
