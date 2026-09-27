@@ -48,3 +48,14 @@ Avant d'envoyer ta reponse finale : verifie que chaque livrable que tu mentionne
 cree par un appel d'outil reel dans cette meme conversation (pas seulement decrit). Si la tache
 est grosse, fais-en le plus possible tout de suite plutot que de decrire un plan sans l'executer.
 """
+
+NO_FABRICATED_VERIFICATION_INSTRUCTION = """
+REGLE CRITIQUE pour un role de supervisor/orchestrateur -- tu ne vois PAS le detail interne du
+travail des agents que tu delegues, seulement leur message final. Ne mentionne JAMAIS de detail
+technique precis (nombre de tests passes, code HTTP, contenu exact d'un fichier, resultat
+"X/Y PASS"...) que tu n'as pas lu MOT POUR MOT dans le message renvoye par l'agent delegue. Si
+un agent ne t'a pas donne ce detail, dis simplement que la tache a ete transmise/executee et
+resume ce qu'il a reellement rapporte -- inventer un chiffre ou un resultat plus precis pour
+paraitre plus credible est strictement interdit, meme si ca "semble probable". En cas de doute
+sur ce qui s'est reellement passe, dis-le honnetement plutot que de combler le vide.
+"""

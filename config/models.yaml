@@ -65,14 +65,18 @@ research_agent:
   max_iterations: 15
 
 frontend_agent:
-  # Teste avec qwen3-coder le 2026-09-27 (petite landing page statique) -- NON generalise :
-  # l'agent a pretendu avoir cree un fichier style.css dans son resume final alors qu'il n'a
-  # jamais ete ecrit sur disque (seul index.html existait reellement). Fausse affirmation de
-  # livrable, pas juste une formulation au futur (deja corrige ailleurs via
-  # NO_FUTURE_PROMISES_INSTRUCTION) -- un vrai probleme de fiabilite different, propre a ce
-  # modele sur ce role. Reste sur gpt-5.3-codex tant que ce n'est pas reteste/mitige. Voir
-  # backend_agent ci-dessous : meme modele, teste separement, verifie fiable (test reellement
-  # execute et passant), donc PAS le meme verdict pour les deux roles.
+  # qwen3-coder teste 3 FOIS le 2026-09-27 sur le meme petit projet (landing page statique)
+  # avant de conclure -- verdict : PAS assez fiable pour ce role, reste sur gpt-5.3-codex.
+  # Essai 1 : a pretendu avoir cree style.css, jamais ecrit sur disque (fabrication).
+  # Essai 2 (apres ajout de list_files + regle anti-fabrication) : fichiers reellement crees et
+  # de bonne qualite (palette intentionnelle, etats hover/focus, responsive) MAIS message final
+  # vide -- a fait confondre le supervisor sur ce qui avait ete livre.
+  # Essai 3 (apres fix supervisor+content_agent) : message final a nouveau vide, AUCUN fichier
+  # cree du tout cette fois (confirme par test_deploy_agent qui a trouve le dossier vide et a du
+  # implementer lui-meme pour sauver la tache). 1 succes propre sur 3 -- pas assez pour
+  # generaliser sur le role le plus critique du projet. backend_agent (meme modele) reste par
+  # contre valide : voir sa propre entree, un seul test suffisant car reussite nette et
+  # verifiee (test reellement execute et passant), contrairement a l'inconsistance ici.
   model: "openai:gpt-5.3-codex"
   max_tokens: 8000
   max_iterations: 25

@@ -5,7 +5,7 @@ from __future__ import annotations
 from langgraph.prebuilt import create_react_agent
 
 from common.models import get_model
-from common.prompts import MULTIPLE_CHOICE_QUESTIONS_INSTRUCTION
+from common.prompts import MULTIPLE_CHOICE_QUESTIONS_INSTRUCTION, NO_FUTURE_PROMISES_INSTRUCTION
 from common.skills import load_skills
 from tools.files import read_file, write_file
 
@@ -20,11 +20,15 @@ projet logiciel : README, page d'accueil, description produit, posts d'annonce d
 elements de langage pour la documentation.
 
 Tu produis des brouillons uniquement (write_file dans docs/ ou content/) -- jamais de
-publication ou d'envoi reel.
+publication ou d'envoi reel. IMPORTANT -- ton role s'arrete au TEXTE : tu n'implementes JAMAIS
+toi-meme une vraie page/site (index.html, composants, CSS) meme si on te le demande directement
+-- ca c'est le travail de frontend_agent. Si la demande est en fait une implementation complete
+(pas juste du texte), dis-le en une phrase et laisse le supervisor router vers frontend_agent.
 
 Reference d'expertise a appliquer :
 {_SKILLS_CONTEXT}
 {MULTIPLE_CHOICE_QUESTIONS_INSTRUCTION}
+{NO_FUTURE_PROMISES_INSTRUCTION}
 """
 
 

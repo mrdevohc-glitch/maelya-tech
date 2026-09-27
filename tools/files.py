@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-from common.workdir import resolve
+from common.workdir import get_working_directory, resolve
+
+_EXCLUDED_DIR_NAMES = {".git", ".venv", "node_modules", ".state", "__pycache__", ".pytest_cache"}
 
 
 @tool
@@ -42,3 +44,20 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
         return f"ERREUR: old_text apparait {occurrences} fois, sois plus specifique (aucune modification faite)."
     target.write_text(content.replace(old_text, new_text, 1), encoding="utf-8")
     return f"OK: {path} modifie."
+
+
+@tool
+def list_files() -> str:
+    """Liste, recursivement et pour de vrai (pas de memoire), tous les fichiers qui existent
+    reellement sur disque dans le projet en cours. A utiliser avant de conclure/resumer ton
+    travail : ne decris comme "cree" ou "modifie" que ce qui apparait effectivement dans cette
+    liste -- jamais un fichier que tu penses avoir ecrit mais que tu n'as pas verifie."""
+    root = get_working_directory()
+    paths = sorted(
+        p.relative_to(root).as_posix()
+        for p in root.rglob("*")
+        if p.is_file() and not any(part in _EXCLUDED_DIR_NAMES for part in p.relative_to(root).parts)
+    )
+    if not paths:
+        return "(aucun fichier -- le projet est vide)"
+    return "\n".join(paths)

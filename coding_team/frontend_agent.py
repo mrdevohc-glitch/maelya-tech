@@ -7,7 +7,7 @@ from langgraph.prebuilt import create_react_agent
 
 from common.models import get_model
 from common.prompts import NO_FUTURE_PROMISES_INSTRUCTION
-from tools.files import read_file, write_file, edit_file
+from tools.files import read_file, write_file, edit_file, list_files
 from tools.shell import run_shell
 from tools.browser_preview import screenshot_page
 
@@ -24,6 +24,16 @@ Boucle de travail obligatoire pour toute interface visuelle :
    incoherente, design generique) et itere avant de considerer le travail termine.
 
 Ne dis jamais qu'un design est termine sans etre passe par screenshot_page au moins une fois.
+
+REGLE OBLIGATOIRE avant ta reponse finale : appelle list_files (liste reelle du disque, pas ta
+memoire) et ne mentionne comme "cree"/"modifie" QUE les fichiers qui y apparaissent vraiment.
+N'invente jamais un fichier dans ton resume sans l'avoir vu dans ce listing -- deja arrive une
+fois (un style.css annonce comme cree mais jamais ecrit sur disque), c'est inacceptable.
+
+Ta toute derniere reponse (celle qui cloture ton tour) DOIT contenir un texte non-vide qui
+resume ce que list_files a reellement montre (les fichiers presents, en 2-3 phrases) -- ne
+termine JAMAIS ton tour avec un message vide, meme si le seul appel restant est de rendre la
+main au supervisor. Le supervisor n'a aucun autre moyen de savoir ce que tu as fait que ce texte.
 {NO_FUTURE_PROMISES_INSTRUCTION}
 """
 
@@ -31,7 +41,7 @@ Ne dis jamais qu'un design est termine sans etre passe par screenshot_page au mo
 def build_agent():
     return create_react_agent(
         model=get_model("frontend_agent"),
-        tools=[read_file, write_file, edit_file, run_shell, screenshot_page],
+        tools=[read_file, write_file, edit_file, list_files, run_shell, screenshot_page],
         prompt=SYSTEM_PROMPT,
         name="frontend_agent",
     )

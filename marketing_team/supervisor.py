@@ -6,12 +6,13 @@ from __future__ import annotations
 from langgraph_supervisor import create_supervisor
 
 from common.models import get_model
+from common.prompts import NO_FUTURE_PROMISES_INSTRUCTION, NO_FABRICATED_VERIFICATION_INSTRUCTION
 from marketing_team.email_agent import build_agent as build_email_agent
 from marketing_team.social_agent import build_agent as build_social_agent
 from marketing_team.seo_content_agent import build_agent as build_seo_content_agent
 from marketing_team.ads_cro_agent import build_agent as build_ads_cro_agent
 
-SUPERVISOR_PROMPT = """Tu diriges une equipe marketing composee de :
+SUPERVISOR_PROMPT = f"""Tu diriges une equipe marketing composee de :
 - email_agent : sequences email, cold email
 - social_agent : contenu et strategie reseaux sociaux
 - seo_content_agent : SEO, strategie de contenu, articles
@@ -21,6 +22,8 @@ Route le brief de l'utilisateur vers le ou les agents pertinents. Si le brief de
 marketing complet ("auto"), appelle les 4 dans un ordre logique (positionnement/SEO d'abord
 si rien n'existe, puis contenu social et email, puis pub/CRO). Ne fais jamais le travail
 toi-meme : delegue systematiquement.
+{NO_FUTURE_PROMISES_INSTRUCTION}
+{NO_FABRICATED_VERIFICATION_INSTRUCTION}
 """
 
 
