@@ -48,10 +48,17 @@ def _run_code_job(row) -> str:
 
     set_allow_push(bool(row["allow_push"]))
     set_current_client(row["client_id"])  # lu par tools/deployment/staging.py
+    had_explicit_project_dir = bool(row["project_dir"])
     project_dir = (
-        Path(row["project_dir"]) if row["project_dir"] else OUTPUT_DIR / "projects" / _slugify(row["task"])
+        Path(row["project_dir"]) if had_explicit_project_dir else OUTPUT_DIR / "projects" / _slugify(row["task"])
     )
     resolved = set_working_directory(project_dir)
+
+    if not had_explicit_project_dir:
+        # Persiste le dossier reellement utilise -- sinon cette ligne garde project_dir=NULL
+        # pour toujours et personne (list_projects(), le formulaire "Repondre" de cette page)
+        # ne peut savoir ou continuer la conversation la prochaine fois.
+        db.set_job_project_dir(row["id"], resolved.relative_to(OUTPUT_DIR.parent).as_posix())
 
     checkpoint_db = resolved / ".state" / "conversation.sqlite"
     checkpoint_db.parent.mkdir(parents=True, exist_ok=True)

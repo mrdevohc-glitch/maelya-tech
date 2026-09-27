@@ -220,6 +220,16 @@ def mark_failed(job_id: str, error: str) -> None:
         )
 
 
+def set_job_project_dir(job_id: str, project_dir: str) -> None:
+    """Enregistre le VRAI dossier resolu pour un job 'code' sans project_dir explicite (nouveau
+    projet auto-nomme). Sans ca, la ligne reste avec project_dir=NULL pour toujours -- le job
+    n'apparait jamais dans list_projects()/le formulaire "Repondre" de sa propre page ne peut
+    pas savoir ou continuer, et chaque reponse recree un nouveau projet vide (bug reel constate
+    en production le 2026-09-27, tous les jobs 'code' existants avaient project_dir=NULL)."""
+    with _connect() as conn:
+        conn.execute("UPDATE jobs SET project_dir=? WHERE id=?", (project_dir, job_id))
+
+
 def get_job(job_id: str) -> sqlite3.Row | None:
     with _connect() as conn:
         return conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
