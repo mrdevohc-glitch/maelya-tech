@@ -65,24 +65,46 @@ research_agent:
   max_iterations: 15
 
 frontend_agent:
+  # Teste avec qwen3-coder le 2026-09-27 (petite landing page statique) -- NON generalise :
+  # l'agent a pretendu avoir cree un fichier style.css dans son resume final alors qu'il n'a
+  # jamais ete ecrit sur disque (seul index.html existait reellement). Fausse affirmation de
+  # livrable, pas juste une formulation au futur (deja corrige ailleurs via
+  # NO_FUTURE_PROMISES_INSTRUCTION) -- un vrai probleme de fiabilite different, propre a ce
+  # modele sur ce role. Reste sur gpt-5.3-codex tant que ce n'est pas reteste/mitige. Voir
+  # backend_agent ci-dessous : meme modele, teste separement, verifie fiable (test reellement
+  # execute et passant), donc PAS le meme verdict pour les deux roles.
   model: "openai:gpt-5.3-codex"
   max_tokens: 8000
   max_iterations: 25
 
 backend_agent:
-  model: "openai:gpt-5.3-codex"
+  # Bascule sur qwen3-coder confirmee le 2026-09-27 : petit projet reel (API Flask /health +
+  # test pytest), fichiers generes lus manuellement (code idiomatique, factory pattern correct)
+  # ET le test genere a reellement ete execute (pytest) -- passe du premier coup. ~120x moins
+  # cher que gpt-5.3-codex ($0.07/$0.28 vs les tarifs OpenAI). Si un futur run produit du code
+  # qui ne compile pas / des tests qui echouent de facon suspecte, revenir a gpt-5.3-codex et
+  # documenter ici pourquoi -- ne pas s'entêter sur un modele moins cher si la qualite decroche.
+  model: "openai:qwen/qwen3-coder-30b-a3b-instruct"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 8000
   max_iterations: 25
 
 test_deploy_agent:
-  model: "openai:nex-agi/nex-n2.5-pro:free"
+  # nex-agi/nex-n2.5-pro:free a disparu du catalogue OpenRouter (404 "No endpoints found",
+  # constate en direct le 2026-09-27) -- retire du catalogue par le fournisseur, sans lien avec
+  # ce projet. Bascule sur deepseek-v4.1-flash (deja verifie fiable en direct) plutot que de
+  # rechasser un autre modele ":free" au hasard -- coherent avec la lecon deja tiree plus haut
+  # dans ce fichier (NVIDIA/Inkling/Poolside), un modele gratuit fiable n'existe pas dans la duree.
+  model: "openai:deepseek/deepseek-v4.1-flash"
   base_url: "https://openrouter.ai/api/v1"
   api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 4000
   max_iterations: 20
 
 security_agent:
-  model: "openai:nex-agi/nex-n2.5-pro:free"
+  # Meme bascule que test_deploy_agent ci-dessus, meme raison (nex-agi retire du catalogue).
+  model: "openai:deepseek/deepseek-v4.1-flash"
   base_url: "https://openrouter.ai/api/v1"
   api_key_env: "OPENROUTER_API_KEY"
   max_tokens: 4000
