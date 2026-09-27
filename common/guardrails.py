@@ -2,10 +2,15 @@
 
 Aucun agent ne peut lever ces blocages lui-meme : seul le flag CLI --allow-push
 (voir cli.py) debloque `git push`, et rien ne debloque les suppressions destructrices.
+
+ContextVar (pas une variable globale simple) pour la meme raison que common/workdir.py : sans
+ca, un job B qui active allow_push pourrait etre vu par un thread d'outil en retard d'un job A
+qui ne l'a jamais autorise.
 """
 from __future__ import annotations
 
 import re
+from contextvars import ContextVar
 
 _ALWAYS_BLOCKED = [
     (re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE), "git reset --hard est destructif"),
@@ -16,12 +21,11 @@ _ALWAYS_BLOCKED = [
 _PUSH_PATTERN = re.compile(r"\bgit\s+push\b", re.IGNORECASE)
 _RM_RF_PATTERN = re.compile(r"\brm\s+(-\w*r\w*f\w*|-\w*f\w*r\w*)\s+(\S+)", re.IGNORECASE)
 
-_allow_push = False
+_allow_push_var: ContextVar[bool] = ContextVar("allow_push", default=False)
 
 
 def set_allow_push(value: bool) -> None:
-    global _allow_push
-    _allow_push = value
+    _allow_push_var.set(value)
 
 
 def _is_safe_rm_target(target: str) -> bool:
@@ -44,7 +48,7 @@ def check_command(command: str) -> tuple[bool, str]:
             f"Supprime le fichier toi-meme si c'est voulu."
         )
 
-    if _PUSH_PATTERN.search(command) and not _allow_push:
+    if _PUSH_PATTERN.search(command) and not _allow_push_var.get():
         return False, (
             f"Commande bloquee: `{command}`. Relance la CLI avec --allow-push pour "
             f"autoriser git push sur ce run."
