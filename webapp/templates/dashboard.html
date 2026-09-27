@@ -32,13 +32,36 @@
 </a>
 {% endif %}
 
+{% if projects %}
+<section class="card">
+  <h2>Continuer un projet existant</h2>
+  <p class="muted">
+    <strong>Important :</strong> pour repondre a une question ou donner une suite a un projet
+    deja commence, clique sur son nom ci-dessous -- ne tape PAS ta reponse dans le formulaire
+    "Nouvelle instruction" plus bas, ca creerait un projet vide separe qui ne se souvient de
+    rien (deja arrive plusieurs fois).
+  </p>
+  <div class="project-grid">
+    {% for p in projects[:6] %}
+    <a href="/projects/{{ p.project_dir }}" class="project-card">
+      <div class="project-card-header">
+        <span class="project-card-name">{{ p.project_dir.split('/')[-1] }}</span>
+        {% if p.last_status %}<span class="badge status-{{ p.last_status }}">{{ p.last_status }}</span>{% endif %}
+      </div>
+      <p class="muted">{{ p.client_name or "aucun client" }} -- derniere activite {{ p.last_activity }}</p>
+    </a>
+    {% endfor %}
+  </div>
+  {% if projects|length > 6 %}<p class="muted"><a href="/projects">Voir tous les projets ({{ projects|length }})</a></p>{% endif %}
+</section>
+{% endif %}
+
 <div class="dashboard-columns">
   <section class="card">
     <h2>Nouvelle instruction</h2>
     <p class="muted">
-      Pour un projet existant, ouvre plutot sa <a href="/projects">fiche projet</a> --
-      l'instruction y est deja rattachee au bon dossier. Ce formulaire sert a demarrer un
-      NOUVEAU projet ou une conversation marketing.
+      Ce formulaire cree TOUJOURS un nouveau projet, meme si le texte ressemble a une reponse.
+      {% if projects %}Pour continuer un projet existant, utilise les liens ci-dessus a la place.{% endif %}
     </p>
     <form method="post" action="/jobs" enctype="multipart/form-data" id="new-job-form">
       <label>

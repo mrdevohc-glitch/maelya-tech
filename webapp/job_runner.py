@@ -18,6 +18,7 @@ import traceback
 from pathlib import Path
 
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.errors import GraphRecursionError
 
 from common.current_client import set_current_client
 from common.guardrails import set_allow_push
@@ -205,6 +206,25 @@ def _process_one(row) -> None:
             _sync_intake_status(row["id"], "succeeded")
             _notify_client_intake_ready(row["id"])
         _notify_owner_job_done(row, "termine")
+    except GraphRecursionError:
+        # Message clair plutot que la stack trace Python brute -- cas rencontre en reel : le
+        # plus souvent une tache incoherente/orpheline (ex: une reponse a une question tapee
+        # dans le formulaire "Nouvelle instruction" au lieu de la fiche projet, voir
+        # dashboard.html) qui fait tourner l'equipe en rond sans jamais conclure, pas un vrai
+        # bug de l'equipe d'agents.
+        db.mark_failed(
+            row["id"],
+            "La conversation a demande plus d'etapes que la limite autorisee sans conclure. "
+            "Cause la plus frequente : cette instruction repond a une question posee dans un "
+            "AUTRE projet/job, mais a ete envoyee ici comme une tache neuve et independante, "
+            "sans le contexte de la conversation d'origine -- verifie que tu utilises bien la "
+            "fiche du BON projet (voir /projects) pour repondre, pas le formulaire general du "
+            "tableau de bord. Si le sujet est simplement complexe, reformule une instruction "
+            "plus precise et ciblee.",
+        )
+        if row["kind"] == "intake":
+            _sync_intake_status(row["id"], "failed")
+        _notify_owner_job_done(row, "en echec")
     except Exception:  # noqa: BLE001 -- un job en echec ne doit jamais arreter le worker
         db.mark_failed(row["id"], traceback.format_exc())
         if row["kind"] == "intake":
