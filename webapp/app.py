@@ -21,6 +21,7 @@ from common.crypto import encrypt_json
 from common.paths import AGENTS_ROOT, OUTPUT_DIR
 from common.slugify import slugify
 from tools.publishing.image_gen import IMAGES_DIR
+from tools.marketing_output import resolve_marketing_path
 from webapp import db
 from webapp.rate_limit import RateLimiter
 from webapp.auth import (
@@ -392,7 +393,13 @@ def create_job_form(
                 f"pour la(les) consulter si besoin."
             )
     elif has_images and kind == "marketing":
-        dest_dir = OUTPUT_DIR / "marketing" / "inputs" / (thread or "default")
+        # `thread` est un texte libre fourni par l'utilisateur -- ne jamais le concatener dans
+        # un chemin sans passer par resolve_marketing_path (protection anti-evasion, ex:
+        # thread="../../secrets"), meme comportement que write_draft pour ce meme dossier.
+        try:
+            dest_dir = resolve_marketing_path(f"inputs/{thread or 'default'}")
+        except ValueError:
+            return HTMLResponse("Nom de conversation invalide.", status_code=400)
         saved = _save_uploaded_images(images, dest_dir)
         if saved:
             paths_text = ", ".join(f"inputs/{thread or 'default'}/{name}" for name in saved)
